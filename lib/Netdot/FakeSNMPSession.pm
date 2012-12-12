@@ -7,6 +7,7 @@ use Coro;
 use AnyEvent;
 use Net::SNMP::QueryEngine::AnyEvent;
 use Socket;
+use Data::Dump 'pp', 'dd';
 use SNMP;  # we use that for OID translation
 
 sub new
@@ -36,10 +37,11 @@ sub new
 sub _self_check
 {
     my $me = shift;
+    my $class = ref($me) || $me;
     for my $p (qw(sqe DestHost Version)) {
-	croak("$class::new: argument \"$p\" must be supplied") unless $me->{$p};
+	croak("$class:\:new: argument \"$p\" must be supplied") unless $me->{$p};
     }
-    croak("$class::new: unsupported SNMP version: $me->{Version}")
+    croak("$class:\:new: unsupported SNMP version: $me->{Version}")
     	unless $me->{Version} == 1 || $me->{Version} == 2;
 }
 
@@ -54,8 +56,15 @@ sub get
 {
     my ($me, $v, $cb) = @_;
 
-    croak("IMPLEMENT ME: GET var is a reference")
-    	if ref $v;
+    if (ref($v)) {
+	if (ref($v) eq "SNMP::Varbind") {
+	    if (@$v == 1) {
+		$v = $v->[0];
+	    }
+	}
+    }
+    croak("IMPLEMENT ME: GET var is a reference we cannot (for now) handle: " . pp($v))
+	if ref $v;
 
     my $oid = $v;
     $oid = SNMP::translateObj($oid) unless $oid =~ /^[\d.]+$/;
