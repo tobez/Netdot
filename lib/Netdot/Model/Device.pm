@@ -3,16 +3,11 @@ package Netdot::Model::Device;
 use base 'Netdot::Model';
 use warnings;
 use strict;
-use Coro;
-use AnyEvent;
-use Coro::AnyEvent;
 use SNMP::Info;
 use Netdot::Util::DNS;
 use Netdot::Topology;
 use Parallel::ForkManager;
 use Data::Dumper;
-use Netdot::FakeSNMPSession;
-use Net::SNMP::QueryEngine::AnyEvent;
 
 =head1 NAME
 
@@ -851,7 +846,7 @@ sub get_snmp_info {
 									   'sclass'      => $sinfo->class);
 
 				    return unless $vsinfo;
-  
+				    
 				    $stp_p_info = $class->_exec_timeout( 
 					$args{host}, 
 					sub{  return $self->_get_stp_info(sinfo=>$vsinfo) } 
@@ -897,9 +892,9 @@ sub get_snmp_info {
 								       'communities' => [$comm],
 								       'version'     => $sinfo->snmp_ver,
 								       'sclass'      => $sinfo->class);
-				
+
 				return unless $vsinfo;
-				
+
 				my $stp_p_info = $class->_exec_timeout( 
 				    $args{host}, 
 				    sub{  return $self->_get_stp_info(sinfo=>$vsinfo) } );
@@ -3753,7 +3748,7 @@ sub _validate_args {
 	    if ( defined $self ){
 		if ( $self->id != $otherdev->id ){
 		    my $msg = sprintf("%s: Existing device: %s uses S/N %s, MAC %s", 
-				      $self->fqdn, $otherdev->fqdn, $asset->serial_number, 
+				      $self->fqdn, $otherdev->fqdn, $asset->serial_number,
 				      $asset->physaddr);
 		    if ( Netdot->config->get('ENFORCE_DEVICE_UNIQUENESS') ){
 			$self->throw_user($msg); 
@@ -4333,11 +4328,28 @@ sub _fork_end {
 #   Returns: 
 #     Device count
 #
+sub async (&@);
 sub _snmp_update_parallel {
     my ($class, %argv) = @_;
     $class->isa_class_method('_snmp_update_parallel');
     my $use_sqe = Netdot->config->get('USE_SNMP_QUERY_ENGINE');
     my $sqe;
+    if ($use_sqe && !$Netdot::Model::Device::_sqe_module_loaded) {
+	$logger->info("SQE is requested, trying to load relevant modules");
+	eval {
+	    require Coro; Coro->import;
+	    require AnyEvent; AnyEvent->import;
+	    require Coro::AnyEvent; Coro::AnyEvent->import;
+	    require Netdot::FakeSNMPSession; Netdot::FakeSNMPSession->import;
+	    require Net::SNMP::QueryEngine::AnyEvent; Net::SNMP::QueryEngine::AnyEvent->import;
+	    $Netdot::Model::Device::_sqe_module_loaded = 1;
+	    $logger->info("SQE-related modules loaded succesfully");
+	};
+	unless ($Netdot::Model::Device::_sqe_module_loaded) {
+	    $logger->info("Failure loading SQE-related modules, disabling SQE: $@");
+	    $use_sqe = "";
+	}
+    }
     if ($use_sqe) {
 	my @conn = split /:/, $use_sqe;
 	my $check_done = AnyEvent->condvar;
@@ -4365,7 +4377,7 @@ sub _snmp_update_parallel {
 	$class->_snmp_update_parallel_sqe(%argv, sqe => $sqe);
     } else {
 	if ($use_sqe) {
-	    $logger->info("SQE is NOT available, using traditional method for SNMP collection");
+	    $logger->info("SQE daemon is NOT available, using traditional method for SNMP collection");
 	} else {
 	    $logger->info("Using traditional method for SNMP collection");
 	}
@@ -5911,24 +5923,24 @@ sub _update_interfaces {
 	if ( $int_thold <= 0 || $int_thold >= 1 ){
 	    $self->throw_fatal('Incorrect value for IF_COUNT_THRESHOLD in config file');
 	}
-	
+
 	my %old_snmp_ifs;
 	map { $old_snmp_ifs{$_->id} = $_ } 
 	grep { $_->doc_status eq 'snmp' } values %oldifs;
-	
+
 	my $ifs_old = scalar(keys(%old_snmp_ifs));
 	my $ifs_new = scalar(keys(%{$info->{interface}}));
-	
+
 	$logger->debug("$host: Old Ifs: $ifs_old, New Ifs: $ifs_new");
 
-	if ( ($ifs_old && !$ifs_new) || ($ifs_new && ($ifs_new < $ifs_old) && 
+	if ( ($ifs_old && !$ifs_new) || ($ifs_new && ($ifs_new < $ifs_old) &&
 					 ($ifs_new / $ifs_old) <= $int_thold) ){
 	    $logger->warn(sprintf("%s: new/old interface ratio: %.2f is below INT_COUNT_THRESHOLD".
 				  "Skipping interface update. Re-discover manually if needed.",
 				  $host, $ifs_new/$ifs_old));
 	    return;
 	}
-	
+
 	# Do the same for IP addresses
 	my $ips_old = scalar(keys(%old_ips));
 	my $ips_new = 0;
@@ -5939,17 +5951,16 @@ sub _update_interfaces {
 		$ips_new++;
 	    }
 	}
-	
+
 	$logger->debug("$host: Old IPs: $ips_old, New IPs: $ips_new");
 
-	if ( ($ips_old && !$ips_new) || ($ips_new && ($ips_new < $ips_old) && 
+	if ( ($ips_old && !$ips_new) || ($ips_new && ($ips_new < $ips_old) &&
 					 ($ips_new / $ips_old) <= $int_thold) ){
 	    $logger->warn(sprintf("%s: new/old IP ratio: %.2f is below INT_COUNT_THRESHOLD".
 				  "Skipping interface update. Re-discover manually if needed.",
 				  $host, $ips_new/$ips_old));
 	    return;
 	}
-	
     }
 
     # Index by interface name (ifDescr) and number (ifIndex)
@@ -6116,9 +6127,9 @@ sub _update_interfaces {
 	}
 
 	# Don't delete snmp_target address unless updating via UI
-	if ( $ENV{REMOTE_USER} eq 'netdot' && 
+	if ( $ENV{REMOTE_USER} eq 'netdot' &&
 	     $self->snmp_target->id == $obj->id ){
-	    $logger->debug(sub{sprintf("%s: IP %s is snmp target. Skipping delete", 
+	    $logger->debug(sub{sprintf("%s: IP %s is snmp target. Skipping delete",
 				       $host, $obj->address)});
 	    next;
 	}
