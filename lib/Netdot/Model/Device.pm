@@ -712,8 +712,8 @@ sub get_snmp_info {
 
     $logger->debug("Device::get_snmp_info: SNMP target is $dev{snmp_target}");
     
-    $dev{community}    = $sinfo->snmp_comm;
     $dev{snmp_version} = $sinfo->snmp_ver;
+    $dev{community}    = $sinfo->snmp_comm if ( defined $sinfo->snmp_ver && $sinfo->snmp_ver != 3 );
 
     my $name_src = ( $self->config->get('IFNAME_SHORT') eq '1' )? 
 	'orig_i_name' : 'i_description';
@@ -925,10 +925,10 @@ sub get_snmp_info {
 	}
     }
 
-    # Set some defaults specific to device types
+    # Set some values specific to device types
     if ( $dev{ipforwarding} ){
-	$dev{bgplocalas}  =  $sinfo->bgp_local_as();
-	$dev{bgpid}       =  $sinfo->bgp_id();
+	$dev{bgplocalas} =  $sinfo->bgp_local_as();
+	$dev{bgpid}      =  $sinfo->bgp_id();
     }
 
     ################################################################
@@ -990,7 +990,6 @@ sub get_snmp_info {
 		}
 	    }
 	}
-	
     }
 
 
@@ -1133,10 +1132,16 @@ sub get_snmp_info {
 	if ( $key =~ /^.+\.((?:\d+\.){15}\d+)$/o ) {
 	    $addr = $self->_octet_string_to_v6($1);
 	}
-	if ( $val =~ /^(\d+)\.\d+\.\d+\.([\d\.]+)\.(\d+)$/o ) {
+	if ( $val =~ /^(\d+)\.(\d+)\.\d+\.([\d\.]+)\.(\d+)$/o ) {
 	    # ifIndex, type, size, prefix length
-	    $iid = $1; $len = $3;
-	    $pfx = $self->_octet_string_to_v6($2);
+	    if ( ($1 == 1)  && ($2 > 150000000)) {
+		# It seems that for nexus the ifIndex id is always greater than 150000000
+                $iid=$2;
+            } else {
+                $iid=$1;
+            }
+	    $len = $4;
+	    $pfx = $self->_octet_string_to_v6($3);
 	}
 	if ( $iid && $addr && $pfx && $len ){
 	    next unless (defined $dev{interface}{$iid});
@@ -1185,20 +1190,20 @@ sub get_snmp_info {
 	##############################################
 	# for each BGP Peer discovered...
 	foreach my $peer ( keys %{$hashes{'bgp_peers'}} ) {
-	    $dev{bgppeer}{$peer}{address} = $peer;
-	    unless ( $dev{bgppeer}{$peer}{bgppeerid} = $hashes{'bgp_peer_id'}->{$peer} ){
+	    $dev{bgp_peer}{$peer}{address} = $peer;
+	    unless ( $dev{bgp_peer}{$peer}{bgppeerid} = $hashes{'bgp_peer_id'}->{$peer} ){
 		$logger->warn("Could not determine BGP peer id of peer $peer");
 	    }
 	    if ( my $asn = $hashes{'bgp_peer_as'}->{$peer} ){
-		$dev{bgppeer}{$peer}{asnumber} = $asn;
-		$dev{bgppeer}{$peer}{asname}   = "AS $asn";
-		$dev{bgppeer}{$peer}{orgname}  = "AS $asn";
+		$dev{bgp_peer}{$peer}{asnumber} = $asn;
+		$dev{bgp_peer}{$peer}{asname}   = "AS $asn";
+		$dev{bgp_peer}{$peer}{orgname}  = "AS $asn";
 		
 		if ( Netdot->config->get('DO_WHOISQ') ){
 		    # We enabled whois queries in config
 		    if ( my $as_info = $self->_get_as_info($asn) ){
-			$dev{bgppeer}{$peer}{asname}  = $as_info->{asname};
-			$dev{bgppeer}{$peer}{orgname} = $as_info->{orgname};
+			$dev{bgp_peer}{$peer}{asname}  = $as_info->{asname};
+			$dev{bgp_peer}{$peer}{orgname} = $as_info->{orgname};
 		    }
 		}
 	    }else{
@@ -2550,56 +2555,54 @@ sub update {
       asnumber
       orgname
       bgppeerid
-    oldpeerings - Hash ref containing old peering objects
+    old_peerings - Hash ref containing old peering objects
   Returns:
     BGPPeering object or undef if error
   Example:
-    foreach my $peer ( keys %{$info->{bgppeer}} ){
-	$self->update_bgp_peering(peer        => $info->{bgppeer}->{$peer},
-				  oldpeerings => \%oldpeerings);
+    foreach my $peer ( keys %{$info->{bgp_peer}} ){
+	$self->update_bgp_peering(peer         => $info->{bgp_peer}->{$peer},
+				  old_peerings => \%old_peerings);
     }
 
 =cut
 
 sub update_bgp_peering {
     my ($self, %argv) = @_;
-    my ($peer, $oldpeerings) = @argv{"peer", "oldpeerings"};
+    my ($peer, $old_peerings) = @argv{"peer", "old_peerings"};
     $self->isa_object_method('update_bgp_peering');
 
-    $self->throw_fatal("Model::Device::update_bgp_peering: Missing required arguments: peer, oldpeerings")
-	unless ( $peer && $oldpeerings );
+    $self->throw_fatal('Model::Device::update_bgp_peering: '.
+		       'Missing required arguments: peer, old_peerings')
+	unless ( $peer && $old_peerings );
+
     my $host = $self->fqdn;
-
     my $p; # bgppeering object
-
+    
     # Check if we have basic Entity info
     my $entity;
-    if ( exists ($peer->{asname}) || 
-	 exists ($peer->{orgname})|| 
-	 exists ($peer->{asnumber}) ){
+    if ( $peer->{asname}  || $peer->{orgname} || $peer->{asnumber} ){
 	
 	my $entityname = $peer->{orgname} || $peer->{asname};
-	$entityname .= " ($peer->{asnumber})";
+	$entityname .= " ($peer->{asnumber})" if $peer->{asnumber};
 	
-	# Check if Entity exists
-	#
-	if ( $entity = Entity->search(asnumber => $peer->{asnumber})->first ||
-	     Entity->search(asname => $peer->{asname})->first               ||
-	     Entity->search(name   => $peer->{orgname})->first
-	     ){
+	# Check if Entity exists (notice it's an OR search)
+	my @where;
+	push @where, { asnumber => $peer->{asnumber} } if $peer->{asnumber};
+	push @where, { asname   => $peer->{asname}   } if $peer->{asname};
+	push @where, { name     => $entityname       };
+	
+	if ( $entity = Entity->search_where(\@where)->first ){
 	    # Update AS stuff
 	    $entity->update({asname   => $peer->{asname},
 			     asnumber => $peer->{asnumber}});
 	}else{
 	    # Doesn't exist. Create Entity
-	    #
 	    # Build Entity info
-	    #
 	    my %etmp = ( name     => $entityname,
 			 asname   => $peer->{asname},
 			 asnumber => $peer->{asnumber},
 		);
-	
+	    
 	    $logger->info(sprintf("%s: Peer Entity %s not found. Inserting", 
 				  $host, $entityname ));
 	    
@@ -2625,7 +2628,6 @@ sub update_bgp_peering {
 	$logger->warn( sprintf("%s: Missing peer info. Cannot associate peering %s with an entity", 
 			       $host, $peer->{address}) );
     }
-    $entity ||= 0;
     
     # Create a hash with the peering's info for update or insert
     my %pstate = (device      => $self,
@@ -2634,16 +2636,16 @@ sub update_bgp_peering {
 		  bgppeeraddr => $peer->{address});
 	
     # Check if peering exists
-    foreach my $peerid ( keys %{ $oldpeerings } ){
+    foreach my $peerid ( keys %{ $old_peerings } ){
 
-	my $oldpeer = $oldpeerings->{$peerid};
-	if ( $oldpeer->bgppeeraddr eq $peer->{address} ){
+	my $old_peer = $old_peerings->{$peerid};
+	if ( $old_peer->bgppeeraddr eq $peer->{address} ){
 	    
 	    # Peering Exists.  
-	    $p = $oldpeer;
+	    $p = $old_peer;
 	    
 	    # Delete from list of old peerings
-	    delete $oldpeerings->{$peerid};
+	    delete $old_peerings->{$peerid};
 	    last;
 	}
     }
@@ -2653,11 +2655,18 @@ sub update_bgp_peering {
 	$logger->debug(sub{ sprintf("%s: Updated Peering with: %s. ", $host, $entity->name)}) if $r;
 	
     }else{
-	# Peering Doesn't exist.  Create.
+	# Peering doesn't exist.  Create.
 	# 
-	$pstate{monitored} = 1;
+	if ( $self->config->get('MONITOR_BGP_PEERINGS') ){
+	    $pstate{monitored} = 1;
+	}else{
+	    $pstate{monitored} = 0;
+	}
 	$p = BGPPeering->insert(\%pstate);
-	my $peer_label = $entity ? $entity->name : $peer->address;
+	my $peer_label;
+	$peer_label = $entity->name  if ($entity && ref($entity)) ;
+	$peer_label = $peer->{address} if ($peer && ref($peer));
+	$peer_label ||= "n\a";
 	$logger->info(sprintf("%s: Inserted new Peering with: %s. ", $host, $peer_label));
     }
     return $p;
@@ -2947,6 +2956,7 @@ sub info_update {
 	my $val = $self->_assign_device_monitored($asset->product_id);
 	$devtmp{monitored}    = $val;
 	$devtmp{snmp_polling} = $val;
+	$devtmp{snmp_target}->update({monitored => $val});
     }
 
     ##############################################################
@@ -2981,7 +2991,10 @@ sub info_update {
 	$argv{bgp_peers} : $self->config->get('ADD_BGP_PEERS');
     
     if ( $update_bgp ){
-	$self->_update_bgp_info($info, \%devtmp);
+	$self->_update_bgp_info(bgp_local_as => $info->{bgplocalas}, 
+				bgp_id       => $info->{bgpid},
+				peers        => $info->{bgp_peer},
+				newdev       => \%devtmp);
     }
 
     ##############################################################
@@ -6178,42 +6191,70 @@ sub _update_interfaces {
 # Add/Update/Delete BGP Peerings
 #
 # Arguments
-#   snmp info hashref
-#   Device object arguments hashref
+#   Hash with following keys:
+#      bgp_local_as - Local AS to this device
+#      bgp_id       - BGP ID of this device
+#      peers        - Hashref of peering info
+#      newdev       - Device object arguments hashref
 # Returns
 #   Nothing
 #
 
 sub _update_bgp_info {
-    my ($self, $info, $devtmp) = @_;
+    my ($self, %argv) = @_;
 
     my $host = $self->fqdn;
+    my $devtmp = $argv{newdev};
 
     # Set Local BGP info
-    if( defined $info->{bgplocalas} ){
-	$logger->debug(sub{ sprintf("%s: BGP Local AS is %s", $host, $info->{bgplocalas}) });
-	$devtmp->{bgplocalas} = $info->{bgplocalas};
+    if( defined $argv{bgp_local_as} ){
+	$logger->debug(sub{ sprintf("%s: BGP Local AS is %s", $host, $argv{bgp_local_as}) });
+	$devtmp->{bgplocalas} = $argv{bgp_local_as};
     }
-    if( defined $info->{bgpid} ){
-	$logger->debug(sub{ sprintf("%s: BGP ID is %s", $host, $info->{bgpid})});
-	$devtmp->{bgpid} = $info->{bgpid};
+    if( defined $argv{bgp_id} ){
+	$logger->debug(sub{ sprintf("%s: BGP ID is %s", $host, $argv{bgp_id})});
+	$devtmp->{bgpid} = $argv{bgp_id};
     }
     
     # Get current BGP peerings
     #
-    my %oldpeerings;
-    map { $oldpeerings{ $_->id } = $_ } $self->bgppeers();
+    my %old_peerings;
+    map { $old_peerings{ $_->id } = $_ } $self->bgppeers();
     
+    if ( $ENV{REMOTE_USER} eq 'netdot' ){
+	
+	# Avoid deleting all peerings in cases where we fail to fetch the SNMP data
+	# We compare the number of old and the number of new, and stop if 
+	# the difference is > threshold. We only do this if the user is 'netdot'
+	# to allow a real user to manually update it
+	
+	my $p_old = scalar(keys(%old_peerings));
+	my $p_new = scalar(keys(%{$argv{peers}}));
+	
+	$logger->debug("$host: Old peerings: $p_old, New peerings: $p_new");
+	
+	# Threshold hard set for now
+	my $p_thold = 0.5;
+	
+	if ( ($p_old && !$p_new) || ($p_new && ($p_new < $p_old) && 
+				     ($p_new / $p_old) <= $p_thold) ){
+	    $logger->warn(sprintf("%s: new/old interface ratio: %.2f is below threshold (%s) ".
+				  "Skipping BGP peerings update. Re-discover manually if needed.",
+				  $host, $p_new/$p_old, $p_thold));
+	    return;
+	}
+    }
+
     # Update BGP Peerings
     #
-    foreach my $peer ( keys %{$info->{bgppeer}} ){
-	$self->update_bgp_peering(peer        => $info->{bgppeer}->{$peer},
-				  oldpeerings => \%oldpeerings);
+    foreach my $peer ( keys %{$argv{peers}} ){
+	$self->update_bgp_peering(peer         => $argv{peers}->{$peer},
+				  old_peerings => \%old_peerings);
     }
     # remove each BGP Peering that no longer exists
     #
-    foreach my $peerid ( keys %oldpeerings ) {
-	my $p = $oldpeerings{$peerid};
+    foreach my $peerid ( keys %old_peerings ) {
+	my $p = $old_peerings{$peerid};
 	$logger->info(sprintf("%s: BGP Peering with %s (%s) no longer exists.  Removing.", 
 			      $host, $p->entity->name, $p->bgppeeraddr));
 	$p->delete();
