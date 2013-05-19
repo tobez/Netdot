@@ -180,6 +180,7 @@ sub generate_configs {
 	next unless $monitored;
 
 	my $devh = $device_info->{$devid};
+	next unless $devh->{target_addr} && $devh->{target_version};
 	my $ip = Ipblock->int2ip($devh->{target_addr}, $devh->{target_version});
 
 	$hosts{$ip}{ip} = $ip;
@@ -304,10 +305,14 @@ sub generate_configs {
 			if ( $nd && $device_parents->{$devid}->{$nd} ){
 			    # Neighbor device is my parent
 			    if ( exists $device_info->{$nd} ){
-				if ( $device_info->{$nd}->{interface}->{$neighbor}->{monitored} ){
+				my $ndh = $device_info->{$nd};
+				if ( $ndh->{interface}->{$neighbor}->{monitored} ){
 				    if ( my $nifindex = $intid2ifindex->{$neighbor} ){
 					$hosts{$ip}{service}{$srvname}{parent_host}    = $self->strip_domain($device_info->{$nd}->{hostname});
-					$hosts{$ip}{service}{$srvname}{parent_service} = "IFSTATUS_$nifindex";
+					my $p_srv = "IFSTATUS_$nifindex";
+					$p_srv .= '_'.$ndh->{interface}->{$neighbor}->{name} if defined $ndh->{interface}->{$neighbor}->{name};
+					$p_srv = $self->_rem_illegal_chars($p_srv);
+					$hosts{$ip}{service}{$srvname}{parent_service} = $p_srv;
 				    }
 				}else{
 				    $hosts{$ip}{service}{$srvname}{parent_host}    = $self->strip_domain($device_info->{$nd}->{hostname});
@@ -329,6 +334,7 @@ sub generate_configs {
 	    foreach my $ip_id ( sort keys %{$devh->{interface}->{$intid}->{ip} } ){
 		
 		my $iph = $devh->{interface}->{$intid}->{ip}->{$ip_id};
+		next unless $iph->{addr} && $iph->{version};
 		my $ip = Ipblock->int2ip($iph->{addr}, $iph->{version});
 
 		unless ( $devh->{target_id} == $ip_id ){
@@ -402,6 +408,8 @@ sub generate_configs {
     $self->print_hostgroups(\%groups);
     $self->print_servicegroups(\%servicegroups);
     $self->print_contacts();
+
+    $self->print_eof($self->{out});
 
     $logger->info("Netdot::Exporter::Nagios: Configuration written to file: ".$self->{filename});
     close($self->{out});
@@ -619,7 +627,6 @@ sub print_service {
 		print $out "define serviceescalation{\n";
 		print $out "\thost_name                $hostname\n";
 		print $out "\tservice_description      $srvname\n";
-		print $out "\tdisplay_name             $displayname\n";
 		print $out "\tfirst_notification       $fn\n";
 		print $out "\tlast_notification        $ln\n";
 		print $out "\tnotification_interval    ".$self->{NAGIOS_NOTIF_INTERVAL}."\n";
@@ -727,7 +734,7 @@ sub print_contacts {
 		}
 	    }
 	    # Create the contactgroup
-	    my $members = join ',', @members;
+	    my $members = join ',', sort @members;
 	    
 	    print $out "define contactgroup{\n";
 	    print $out "\tcontactgroup_name       $clname-level_$level\n";
@@ -753,7 +760,7 @@ sub print_hostgroups{
 	my $alias = $groups->{$group}->{alias} || $group;
 	next unless ( defined $groups->{$group}->{members} && 
 		      ref($groups->{$group}->{members}) eq 'ARRAY' );
-	my $hostlist = join ',', @{ $groups->{$group}->{members} };
+	my $hostlist = join ',', sort @{ $groups->{$group}->{members} };
 	print $out "define hostgroup{\n";
 	print $out "\thostgroup_name      $group\n";
 	print $out "\talias               $alias\n";
@@ -775,7 +782,7 @@ sub print_servicegroups{
     foreach my $group ( keys %$groups ){
 	# servicegroup members are like:
 	# members=<host1>,<service1>,<host2>,<service2>,...,
-	my $hostlist = join ',', map { "$_,$group" }@{ $groups->{$group}{members} };
+	my $hostlist = join ',', sort map { "$_,$group" }@{ $groups->{$group}{members} };
 	print $out "define servicegroup{\n";
 	print $out "\tservicegroup_name      $group\n";
 	print $out "\talias                  $group\n";

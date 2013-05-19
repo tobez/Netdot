@@ -2627,6 +2627,7 @@ sub update_bgp_peering {
     }else{
 	$logger->warn( sprintf("%s: Missing peer info. Cannot associate peering %s with an entity", 
 			       $host, $peer->{address}) );
+	$entity = Entity->search(name=>"Unknown")->first;
     }
     
     # Create a hash with the peering's info for update or insert
@@ -3570,7 +3571,7 @@ sub bgppeers_by_id {
 
 sub bgppeers_by_entity {
     my ( $self, $peers, $sort ) = @_;
-    $self->isa_object_method('bgppeers_by_id');
+    $self->isa_object_method('bgppeers_by_entity');
 
     $sort ||= "name";
     unless ( $sort =~ /^name|asnumber|asname$/o ){
@@ -3579,7 +3580,7 @@ sub bgppeers_by_entity {
     my $sortsub = ($sort eq "asnumber") ? 
 	sub{$a->entity->$sort <=> $b->entity->$sort} :
 	sub{$a->entity->$sort cmp $b->entity->$sort};
-    my @peers = sort $sortsub @$peers;
+    my @peers = sort $sortsub grep { defined $_->entity } @$peers;
     
     return unless scalar @peers;
     return \@peers;
@@ -3627,9 +3628,9 @@ sub get_bgp_peers {
 	@peers = grep { $_->asnumber eq $argv{as} } $self->bgppeers;	
     }elsif ( $argv{type} ){
 	if ( $argv{type} eq "internal" ){
-	    @peers = grep { $_->entity->asnumber == $self->bgplocalas } $self->bgppeers;
+	    @peers = grep { defined $_->entity && $_->entity->asnumber == $self->bgplocalas } $self->bgppeers;
 	}elsif ( $argv{type} eq "external" ){
-	    @peers = grep { $_->entity->asnumber != $self->bgplocalas } $self->bgppeers;
+	    @peers = grep { defined $_->entity && $_->entity->asnumber != $self->bgplocalas } $self->bgppeers;
 	}elsif ( $argv{type} eq "all" ){
 	    @peers = $self->bgppeers();
 	}else{
@@ -5308,6 +5309,8 @@ sub _get_as_info{
 	$results{orgname} = $descr;
 	$logger->debug(sub{"Device::_get_as_info:: $server: Found orgname: $descr"});
     }
+    $results{orgname} ||= $asn;
+    $results{asname}  ||= $results{orgname};
     return \%results if %results;
     return;
 }
