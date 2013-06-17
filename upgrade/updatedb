@@ -198,7 +198,7 @@ sub upg_104_105 {
 	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet character varying(255);";
 	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet_2 character varying(255);";
 
-	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL;";
+	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL default 'f';";
 	push @statements, "ALTER TABLE ipblock ADD COLUMN rir character varying(255);";
 	push @statements, "ALTER TABLE ipblock ADD COLUMN asn character varying(255);";
     }
