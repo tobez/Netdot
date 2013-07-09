@@ -36,6 +36,8 @@ $dowindow    => undef
 </%args>
 
 <%init>
+use NetAddr::IP;
+
 my $DEBUG = 0;
 my %orderbrief;
 my @orderbrief;
@@ -141,33 +143,26 @@ if ( defined($object) && scalar @$object ){
 	}
 	print "Sorting by $sort_field<br/>" if $DEBUG;
 	# Be smart about sorting numerically, alphabetically or by IP
-	my $ip    = 0;
-	my $alpha = 0;
+	my $n_ips     = 0;
+	my $n_numbers = 0;
 	my @lbls;
-	foreach my $obj ( @{ $object } ){
-	    my $lbl;
-	    if ( my $ref = ref($obj->$sort_field) ){
-		if ( $ref =~ /Ipblock/o ){
-		    $ip = 1;
-		}
-		$lbl = $obj->$sort_field->get_label;
-	    }else{
-		$lbl = $obj->$sort_field;
-	    }
-	    if ( $lbl =~ /\D+/o ){
-		$alpha = 1;
-	    }
+
+	for my $obj ( @{ $object } ){
+	    my $lbl = $obj->$sort_field;
+	    $lbl = $lbl->get_label if ref $lbl;
+	    $n_ips++     if NetAddr::IP->new($lbl);
+	    $n_numbers++ if $lbl =~ /^[-+]?\d+$/;
 	    push @lbls, [$obj , $lbl];
 	}
-	if ( $ip ){
+	if ( $n_ips == @lbls ){
 	    @lbls = sort { 
 		$a->[0]->$sort_field->address_numeric <=> 
 		    $b->[0]->$sort_field->address_numeric 
 	    } @lbls; 
-	}elsif ( $alpha ){
-	    @lbls = sort { $a->[1] cmp $b->[1] } @lbls; 
-	}else{
+	}elsif ( $n_numbers == @lbls ){
 	    @lbls = sort { $a->[1] <=> $b->[1] } @lbls; 
+	}else{
+	    @lbls = sort { $a->[1] cmp $b->[1] } @lbls; 
 	}
 	map { $objindex{$i++} = $_ } map { $_->[0] } @lbls;
     }
