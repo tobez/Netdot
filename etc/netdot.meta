@@ -4897,7 +4897,7 @@ $meta = {
         type => 'timestamp'
       },
       monitored => {
-        default => '',
+        default => 'false',
         description => 'Whether this IP address should be monitored or not',
         length => '',
         nullable => 0,
@@ -4995,7 +4995,7 @@ $meta = {
         type => 'bigint'
       },
       use_network_broadcast => {
-        default => '',
+        default => 'false',
         description => 'Whether the network and broadcast addresses in this IPv4 block should be marked as reserved or not',
         length => '',
         nullable => 0,
