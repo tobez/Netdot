@@ -36,8 +36,6 @@ $dowindow    => undef
 </%args>
 
 <%init>
-use NetAddr::IP;
-
 my $DEBUG = 0;
 my %orderbrief;
 my @orderbrief;
@@ -149,8 +147,10 @@ if ( defined($object) && scalar @$object ){
 
 	for my $obj ( @{ $object } ){
 	    my $lbl = $obj->$sort_field;
-	    $lbl = $lbl->get_label if ref $lbl;
-	    $n_ips++     if NetAddr::IP->new($lbl);
+		if (ref $lbl) {
+			$n_ips++ if $lbl->can("address_numeric");
+			$lbl = $lbl->get_label;
+		}
 	    $n_numbers++ if $lbl =~ /^[-+]?\d+$/;
 	    push @lbls, [$obj , $lbl];
 	}
