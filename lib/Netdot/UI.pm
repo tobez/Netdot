@@ -1,6 +1,6 @@
 package Netdot::UI;
 
-use lib "/home/tobez/netdot/pg/cidripdata.bin/lib";
+use lib "<<Make:LIB>>";
 use base qw( Netdot );
 use Netdot::Model;
 use Apache::Session::File;
