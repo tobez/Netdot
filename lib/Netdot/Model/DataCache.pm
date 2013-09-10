@@ -33,7 +33,7 @@ __PACKAGE__->add_trigger( select             => \&_decode_bindata );
 sub _encode_bindata{
     my $self = shift;
     return 1 unless ( $self->config->get('DB_TYPE') eq 'Pg' );
-    my $data = ($self->_attrs('data'))[0];
+    my $data = ($self->_attrs('data'))[0] // "";
     my $encoded = APR::Base64::encode($data);
     $self->_attribute_store( data => $encoded );
     return 1;

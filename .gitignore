@@ -1,0 +1,6 @@
+.prefix
+bin/oui.txt
+etc/Site.conf
+etc/schema.Pg
+var/pollstats.rrd
+.*.swp

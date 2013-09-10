@@ -23,41 +23,56 @@ DBUTIL - Database Utilites
 
 $|=1; #unbuffer output.
 
-my %CONFIG;
+our (%CONFIG, $dbh);
 
-my $rel_dir = '../etc';
-my $abs_dir = '<<Make:ETC>>';
-
-if ( -d $abs_dir ){
-    $CONFIG{CONFIG_DIR} = $abs_dir;
-}elsif ( -d $rel_dir ){
-    $CONFIG{CONFIG_DIR} = $rel_dir;
-}else{
-    die "Cannot figure out which etc/ directory to use";
-}
-
-$CONFIG{DEBUG}        = 1;
-$CONFIG{PROMPT}       = 1; 
-$CONFIG{SCHEMA_FILE}  = "$CONFIG{CONFIG_DIR}/netdot.meta";
-$CONFIG{DEFAULT_DATA} = "$CONFIG{CONFIG_DIR}/default_data";
-
-
-my $netdot_config = Netdot::Config->new(config_dir => $CONFIG{CONFIG_DIR});
-
-foreach my $var ( qw /DB_TYPE DB_HOME DB_HOST DB_PORT DB_DBA DB_DBA_PASSWORD 
-		  DB_NETDOT_USER DB_NETDOT_PASS DB_DATABASE/ ){
-    $CONFIG{$var} = $netdot_config->get($var);
-}
-
-$CONFIG{BINDIR} = "$CONFIG{DB_HOME}/bin";
-
-use vars qw( @ISA @EXPORT $dbh );
-
-use Exporter ();
-@ISA = qw(Exporter);
-@EXPORT = qw( dbconnect dbdisconnect processdata build_statements init_db drop_db
+our @EXPORT = qw( dbconnect dbdisconnect processdata build_statements init_db drop_db
 generate_schema_from_metadata generate_schema_file insert_schema create_db _yesno
 initacls_mysql initacls_pg insert_default_data insert_oui db_query );
+
+sub import {
+    my ($pkg, @rest) = @_;
+    my $config_dir;
+    if (@rest >= 2 && $rest[0] eq "config") {
+	shift @rest;
+	$config_dir = shift @rest;
+    }
+    init($config_dir);
+    my $callpkg = caller(0);
+    no strict 'refs';
+    *{"$callpkg\::$_"} = \&{"$pkg\::$_"} foreach @EXPORT;
+}
+
+sub init {
+    my $specified_dir = shift;
+    my $rel_dir = '../etc';
+    my $abs_dir = '<<Make:ETC>>';
+
+    if ( -d $specified_dir ){
+	$CONFIG{CONFIG_DIR} = $specified_dir;
+    }elsif ( -d $abs_dir ){
+	$CONFIG{CONFIG_DIR} = $abs_dir;
+    }elsif ( -d $rel_dir ){
+	$CONFIG{CONFIG_DIR} = $rel_dir;
+    }else{
+	die "Cannot figure out which etc/ directory to use";
+    }
+
+    $CONFIG{DEBUG}        = 1;
+    $CONFIG{PROMPT}       = 1; 
+    $CONFIG{SCHEMA_FILE}  = "$CONFIG{CONFIG_DIR}/netdot.meta";
+    $CONFIG{DEFAULT_DATA} = "$CONFIG{CONFIG_DIR}/default_data";
+
+
+    my $netdot_config = Netdot::Config->new(config_dir => $CONFIG{CONFIG_DIR});
+
+    foreach my $var ( qw /DB_TYPE DB_HOME DB_HOST DB_PORT DB_DBA DB_DBA_PASSWORD 
+		      DB_NETDOT_USER DB_NETDOT_PASS DB_DATABASE/ ){
+	$CONFIG{$var} = $netdot_config->get($var);
+    }
+
+    $CONFIG{BINDIR} = "$CONFIG{DB_HOME}/bin";
+}
+
 
 ##################################################
 

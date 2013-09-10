@@ -63,6 +63,12 @@ sub sql_schema {
 	# https://rt.cpan.org/Public/Bug/Display.html?id=58420
 	$output =~ s/serial NOT NULL/bigserial NOT NULL/smg;
     }
+    # Hack in support for PostgreSQL functions, since
+    # standard Producer::PostgreSQL does not do that at all.
+    for my $procedure ( $t->schema->get_procedures ) {
+	$output .= "\n\n";
+	$output .= $procedure->sql();
+    }
     return $output;
 }
 
@@ -210,6 +216,10 @@ sub _parser{
 			      type   => 'NORMAL',
 			      );
 	}
+    }
+
+    foreach my $proc ( values %{ $self->{procedures} || {}} ) {
+	$schema->add_procedure(%$proc) if $proc;
     }
     return 1;
 }

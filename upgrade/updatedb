@@ -1,15 +1,17 @@
+#! /usr/bin/env perl
 # Updates the Netdot database
 
 use warnings;
 use strict;
-use lib "../lib";
-use DBUTIL;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use DBUTIL config => "$FindBin::Bin/../etc";
 use Netdot;
 use Data::Dumper;
 
 my %CONFIG;
 $CONFIG{debug}        = 1;
-$CONFIG{CONFIG_DIR}   = "../etc";
+$CONFIG{CONFIG_DIR}   = "$FindBin::Bin/../etc";
 $CONFIG{SCHEMA_FILE}  = "$CONFIG{CONFIG_DIR}/netdot.meta";
 $CONFIG{DEFAULT_DATA} = "$CONFIG{CONFIG_DIR}/default_data";
 
@@ -34,21 +36,29 @@ if ( $schema_version eq '1.0.1' ){
     &upg_102_103();
     &upg_103_104();
     &upg_104_105();
+    &upg_105_106();
     
 }elsif ( $schema_version eq '1.0.2' ){
     
     &upg_102_103();
     &upg_103_104();
     &upg_104_105();
+    &upg_105_106();
     
 }elsif ( $schema_version eq '1.0.3' ){
     
     &upg_103_104();
     &upg_104_105();
+    &upg_105_106();
 
 }elsif ( $schema_version eq '1.0.4' ){
     
     &upg_104_105();
+    &upg_105_106();
+    
+}elsif ( $schema_version eq '1.0.5' ){
+    
+    &upg_105_106();
     
 }else{
     die "Unsupported version for this upgrade: $schema_version\n";
@@ -206,3 +216,70 @@ sub upg_104_105 {
     push @statements, "UPDATE schemainfo SET version='1.0.5' WHERE id=1;";
 
 }
+
+sub upg_105_106 {
+    if ( $dbms eq 'mysql' ) {
+	die "Convert from mysql to PostgreSQL first\n";
+    } elsif ( $dbms eq 'Pg') {
+	change_numeric_ip_to_cidr();
+    } else {
+	die "Unsupported DBMS: $dbms\n";
+    }
+    push @statements, "UPDATE schemainfo SET version='1.0.6' WHERE id=1;";
+}
+
+sub change_numeric_ip_to_cidr
+{
+    push @statements, <<'EOF';
+create or replace
+function numeric_ip_to_cidr(numeric(40,0), integer, integer) -- (address, prefix, version)
+returns cidr as $$
+ select
+ case
+  when $3 = 4 then
+   text(mod(div($1,power(2::numeric,32-1*8)),256)) || '.' ||
+   text(mod(div($1,power(2::numeric,32-2*8)),256)) || '.' ||
+   text(mod(div($1,power(2::numeric,32-3*8)),256)) || '.' ||
+   text(mod(div($1,power(2::numeric,32-4*8)),256)) || '/' ||
+   text($2)
+  when $3 = 6 then
+   text(to_hex(mod(div($1,power(2::numeric,128-1*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-2*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-3*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-4*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-5*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-6*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-7*16)),65536)::bigint)) || ':' ||
+   text(to_hex(mod(div($1,power(2::numeric,128-8*16)),65536)::bigint)) || '/' ||
+   text($2)
+  else ''
+ end :: cidr
+$$ language SQL;
+EOF
+    push @statements, "ALTER TABLE ipblock ADD COLUMN addr cidr;";
+    push @statements, "UPDATE ipblock SET addr = numeric_ip_to_cidr(address, prefix, version);";
+    push @statements, "ALTER TABLE ipblock ALTER COLUMN addr SET NOT NULL;";
+    push @statements, "ALTER TABLE ipblock DROP COLUMN address, DROP COLUMN prefix, DROP COLUMN version;";
+    push @statements, "ALTER TABLE ipblock DROP COLUMN parent;";
+    push @statements, "ALTER TABLE ipblock ADD CONSTRAINT ipblock_addr UNIQUE (addr);";
+    # The ipblock_parent() functions makes SQL statements
+    # for ->parent(), ->children(), ->get_roots() etc much simpler.
+    # XXX Maybe we want to create functional index on ipblock_parent(id) for speed.
+    push @statements, <<'EOF';
+create or replace
+function ipblock_parent(bigint)
+returns bigint as $$
+ select id from ipblock
+ where
+  addr >>= (
+   select addr from ipblock
+   where
+    id = $1
+  )
+  and id != $1
+ order by masklen(addr) desc
+ limit 1
+$$ language SQL;
+EOF
+}
+

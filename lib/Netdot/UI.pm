@@ -1,6 +1,6 @@
 package Netdot::UI;
 
-use lib "<<Make:LIB>>";
+use lib "/home/tobez/netdot/pg/cidripdata.bin/lib";
 use base qw( Netdot );
 use Netdot::Model;
 use Apache::Session::File;
@@ -357,7 +357,7 @@ sub form_field {
     else {
         my $type = $mcol->sql_type;
 
-	if ( $type =~ /^varchar|timestamp|integer|numeric|bigint$/ ){
+	if ( $type =~ /^varchar|timestamp|integer|numeric|bigint|cidr$/ ){
 	    $value = $self->text_field(object=>$o, table=>$table, column=>$column, edit=>$args{edit}, 
 				       default=>$args{default}, defaults=>$args{defaults}, linkPage=>$args{linkPage}, 
 				       returnAsVar=>1, 

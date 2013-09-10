@@ -4827,13 +4827,13 @@ $meta = {
   Ipblock => {
     table_db_name => 'ipblock',
     columns => {
-      address => {
+      addr => {
         default => '',
-        description => 'IP Address.  This value is stored as an integer in the database',
-        length => '40,0',
+        description => 'Network or IP address, including prefix and IP version',
+        length => '',
         nullable => 0,
         tag => 'Address',
-        type => 'numeric'
+        type => 'cidr'
       },
       asn => {
         default => '',
@@ -4917,28 +4917,6 @@ $meta = {
         tag => 'Owner',
         type => 'bigint'
       },
-      parent => {
-        default => '',
-        description => 'Smallest IP block that contains this address or block.',
-        length => '',
-        linksto => {
-          cascade => 'Nullify',
-          method => 'children',
-          order_by => 'address',
-          table => 'Ipblock'
-        },
-        nullable => 1,
-        tag => 'Parent',
-        type => 'bigint'
-      },
-      prefix => {
-        default => '',
-        description => 'Prefix length of this IP block',
-        length => '',
-        nullable => 0,
-        tag => 'Prefix Length',
-        type => 'integer'
-      },
       rir => {
         default => '',
         description => 'Regional Internet Registry from which block was obtained (AFRINIC, APNIC, ARIN, LACNIC, RIPE)',
@@ -4973,14 +4951,6 @@ $meta = {
         tag => 'Used by',
         type => 'bigint'
       },
-      version => {
-        default => '',
-        description => 'IP version (4 or 6)',
-        length => '',
-        nullable => 0,
-        tag => 'Version(4/6)',
-        type => 'integer'
-      },
       vlan => {
         default => '',
         description => 'VLAN to which this subnet is associated',
@@ -5006,25 +4976,17 @@ $meta = {
   },
     description => 'An IP (v4 or v6) CIDR block, which can represent both individual addresses and blocks of addresses (subnets, etc).',
     has_history => 0,
-    index => [ ['parent'], ['status'], ['first_seen'], ['last_seen'], ['interface'], ['vlan'], ['version'] ],
+    index => [ ['status'], ['first_seen'], ['last_seen'], ['interface'], ['vlan'], ['version'] ],
     isjoin => '0',
     label => [
       'address',
       'prefix'
     ],
     primary_key => 'id',
-    unique => [
-      [
-        'address',
-        'prefix'
-      ]
-    ],
+    unique => [['addr']],
     views => {
       all => [
-        'address',
-        'prefix',
-        'version',
-        'parent',
+        'addr',
         'interface',
         'vlan',
         'status',
@@ -5040,31 +5002,28 @@ $meta = {
         'info'
       ],
       brief => [
-        'address',
-        'prefix',
+        'addr',
         'status',
         'used_by',
         'description',
         'last_seen',
       ],
       address_brief => [
-        'address',
+        'addr',
         'status',
         'used_by',
         'description',
         'last_seen',
       ],
       subnet_brief => [
-        'address',
-        'prefix',
+        'addr',
         'status',
         'vlan',
         'used_by',
         'description',
       ],
       container_brief => [
-        'address',
-        'prefix',
+        'addr',
         'status',
         'owner',
         'used_by',
@@ -8626,5 +8585,27 @@ $meta = {
       ]
     } 
   }, 
- }
+ },
+'procedures' => {
+    ipblock_parent => {
+	name       => 'ipblock_parent',
+	sql        => <<'EOF',
+create or replace
+function ipblock_parent(bigint)
+returns bigint as $$
+ select id from ipblock
+ where
+  addr >>= (
+   select addr from ipblock
+   where
+    id = $1
+  )
+  and id != $1
+ order by masklen(addr) desc
+ limit 1
+$$ language SQL;
+EOF
+	parameters => 'bigint',
+    },
+ },
 }
