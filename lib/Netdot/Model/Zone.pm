@@ -497,7 +497,7 @@ sub get_all_records {
     my $dbh = $self->db_Main;
     my $id = $self->id;
     my $order_by = ($self->is_dot_arpa)? 'pip.address,rr.name' : 'rr.name';
-    my $q = "SELECT   rr.name, zone.name, aip.version, aip.address, rrtxt.txtdata, rrhinfo.cpu, rrhinfo.os,
+    my $q = "SELECT   rr.name, zone.name, family(aip.addr), host(aip.addr), rrtxt.txtdata, rrhinfo.cpu, rrhinfo.os,
                       rrptr.ptrdname, rrns.nsdname, rrmx.preference, rrmx.exchange, rrcname.cname, rrloc.id, 
                       rrsrv.id, rrnaptr.id, rrds.algorithm, rrds.key_tag, rrds.digest_type, rrds.digest, rr.active,
                       rraddr.ttl, rrtxt.ttl, rrhinfo.ttl, rrns.ttl, rrds.ttl, rrmx.ttl, rrcname.ttl, rrptr.ttl
@@ -531,18 +531,16 @@ sub get_all_records {
 
 	if ( $ip ){
 	    if ( $ipversion == 4 ){
-		my $address = Ipblock->int2ip($ip, $ipversion);
-		$rec{$name}{A}{$address} = $rraddrttl;
+		$rec{$name}{A}{$ip} = $rraddrttl;
 	    }elsif ( $ipversion == 6 ){
-		my $address = Ipblock->int2ip($ip, $ipversion);
-		$rec{$name}{AAAA}{$address} = $rraddrttl;
+		$rec{$name}{AAAA}{$ip} = $rraddrttl;
 	    }else{
 		$logger->error("Zone::print_to_file: $ip has unknown version: $ipversion");
 		next;
 	    }
 	}
 	$rec{$name}{NS}{"$nsdname"}            = $rrnsttl    if ($nsdname);
-	$rec{$name}{DS}{"$dskeytag $dsalgorithm $dsdigesttype $dsdigest."}           
+	$rec{$name}{DS}{"$dskeytag $dsalgorithm $dsdigesttype $dsdigest"}           
 	                                       = $rrdsttl    if ($dskeytag && $dsalgorithm && 
 								 $dsdigesttype && $dsdigest);
 	$rec{$name}{MX}{"$mxpref $exchange"}   = $rrmxttl    if (defined($mxpref) && $exchange);
@@ -598,13 +596,13 @@ sub get_record_count {
     my $q2 = "SELECT COUNT(DISTINCT ipv4.id)
              FROM     zone z, rr rr
                       LEFT OUTER JOIN (ipblock ipv4 CROSS JOIN rraddr) 
-                      ON (rr.id=rraddr.rr AND ipv4.id=rraddr.ipblock AND ipv4.version=4)
+                      ON (rr.id=rraddr.rr AND ipv4.id=rraddr.ipblock AND family(ipv4.addr)=4)
              WHERE    rr.zone=z.id AND z.id=$id";
     
     my $q3 = "SELECT COUNT(DISTINCT ipv6.id)
              FROM     zone z, rr rr
                       LEFT OUTER JOIN (ipblock ipv6 CROSS JOIN rraddr) 
-                      ON (rr.id=rraddr.rr AND ipv6.id=rraddr.ipblock AND ipv6.version=6)
+                      ON (rr.id=rraddr.rr AND ipv6.id=rraddr.ipblock AND family(ipv6.addr)=6)
              WHERE    rr.zone=z.id AND z.id=$id";
 
     my $dbh = $self->db_Main;
@@ -888,20 +886,20 @@ sub get_hosts {
     my $q;
     if ( $self->is_dot_arpa ){
 	$q = "SELECT          rr.id, rr.name, 
-                              ip.id, ip.address, ip.version, 
+                              ip.id, host(ip.addr), family(ip.addr), 
                               rrptr.ptrdname, zone.name, zone.id
               FROM            zone, rr
               LEFT OUTER JOIN (ipblock AS ip CROSS JOIN rrptr) ON (rr.id=rrptr.rr AND ip.id=rrptr.ipblock)
-              LEFT OUTER JOIN ipblock AS subnet ON ip.parent=subnet.id
+              LEFT OUTER JOIN ipblock AS subnet ON ipblock_parent(ip.id)=subnet.id
               WHERE           rr.zone=zone.id AND zone.id=$id";
 
     }else{
 	$q = "SELECT          rr.id, rr.name, 
-                              ip.id, ip.address, ip.version, 
+                              ip.id, host(ip.addr), family(ip.addr), 
                               physaddr.id, physaddr.address, zone.name, zone.id
               FROM            zone, rr
               LEFT OUTER JOIN (ipblock AS ip CROSS JOIN rraddr)  ON (rr.id=rraddr.rr AND ip.id=rraddr.ipblock)
-              LEFT OUTER JOIN ipblock AS subnet ON ip.parent=subnet.id
+              LEFT OUTER JOIN ipblock AS subnet ON ipblock_parent(ip.id)=subnet.id
               LEFT OUTER JOIN (physaddr CROSS JOIN dhcpscope) ON (dhcpscope.ipblock=ip.id AND dhcpscope.physaddr=physaddr.id)
               WHERE           rr.zone=zone.id AND zone.id=$id";
 
