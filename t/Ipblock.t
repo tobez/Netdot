@@ -14,6 +14,10 @@ $logger->remove_appender("Syslog");
 
 my $reserved = Ipblock->config->get('SUBNET_AUTO_RESERVE');
 
+like(exception {
+	my $x = Ipblock->insert;
+}, qr/Missing required arguments/, 'bad insert 1');
+
 my $container = Ipblock->insert({
     address => "192.0.2.0",
     prefix  => '24',
@@ -60,7 +64,7 @@ my $address = Ipblock->insert({
 });
 is($address->is_address, 1, 'address.is_address');
 is($address->status->name, 'Static', 'insert address');
-is($container->parent, undef, "container does not and naver will have a parent");
+is($container->parent, undef, "container does not and never will have a parent");
 is(scalar($container->children), 1, "container still has 1 kid");
 is($container->children->first, $subnet, "container.children.first = subnet");
 is($address->parent, $subnet, 'address.parent = subnet');
@@ -124,15 +128,64 @@ like(exception {
 
 ok(Ipblock->within('127.0.0.1', '127.0.0.0/8'), "127.0.0.1 is within 127.0.0.0/8");
 ok(!Ipblock->within('192.168.0.1', '127.0.0.0/8'), "192.168.0.1 is NOT within 127.0.0.0/8");
+like(exception {
+	my $x = Ipblock->within();
+}, qr/Missing required arguments/, 'bad within 1');
+like(exception {
+	my $x = Ipblock->within("adr");
+}, qr/Missing required arguments/, 'bad within 2');
+like(exception {
+	my $x = Ipblock->within("", "block");
+}, qr/Missing required arguments/, 'bad within 3');
+like(exception {
+	my $x = Ipblock->within(1, "block");
+}, qr/not a valid CIDR/, 'bad within 4');
 
 my $hosts = Ipblock->get_host_addrs( $subnet->address ."/". $subnet->prefix );
 is($hosts->[0], '192.0.2.1', 'get_host_addrs');
 
-ok(Ipblock->is_loopback('127.0.0.1'), 'is_loopback_v4');
-ok(Ipblock->is_loopback('::1'), 'is_loopback_v6');
-ok(Ipblock->is_multicast('239.255.0.1'), 'is_multicast_v4');
-ok(Ipblock->is_multicast('FF02::1'), 'is_multicast_v6');
-ok(Ipblock->is_link_local('fe80:abcd::1234'), 'is_link_local');
+ok( Ipblock->is_loopback('127.0.0.1'), 'is_loopback_v4');
+ok(!Ipblock->is_loopback('192.168.10.1'), '!is_loopback_v4');
+ok( Ipblock->is_loopback('::1'), 'is_loopback_v6');
+ok(!Ipblock->is_loopback('2001:2010::1'), '!is_loopback_v6');
+ok(!$address->is_loopback, 'is_loopback as an instance method');
+like(exception {
+	my $x = Ipblock->is_loopback;
+}, qr/Missing required arguments/, 'bad is_loopback 1');
+like(exception {
+	my $x = Ipblock->is_loopback("notandaddress");
+}, qr/Invalid IP/, 'bad is_loopback 2');
+like(exception {
+	my $x = Ipblock->is_loopback("notandaddress", "notaprefix");
+}, qr/Invalid IP/, 'bad is_loopback 3');
+
+ok( Ipblock->is_multicast('239.255.0.1'), 'is_multicast_v4');
+ok(!Ipblock->is_multicast('127.0.0.1'), '!is_multicast_v4');
+ok( Ipblock->is_multicast('FF02::1'), 'is_multicast_v6');
+ok(!Ipblock->is_multicast('::1'), '!is_multicast_v6');
+ok(!$address->is_multicast, 'is_multicast as an instance method');
+like(exception {
+	my $x = Ipblock->is_multicast;
+}, qr/Missing required arguments/, 'bad is_multicast 1');
+like(exception {
+	my $x = Ipblock->is_multicast("notandaddress");
+}, qr/Invalid IP/, 'bad is_multicast 2');
+like(exception {
+	my $x = Ipblock->is_multicast("notandaddress", "notaprefix");
+}, qr/Invalid IP/, 'bad is_multicast 3');
+
+ok( Ipblock->is_link_local('fe80:abcd::1234'), 'is_link_local');
+ok(!Ipblock->is_link_local('::1'), '!is_link_local');
+ok(!$address->is_link_local, 'is_link_local as an instance method');
+like(exception {
+	my $x = Ipblock->is_link_local;
+}, qr/Missing required arguments/, 'bad is_link_local 1');
+like(exception {
+	my $x = Ipblock->is_link_local("notandaddress");
+}, qr/Invalid IP/, 'bad is_link_local 2');
+like(exception {
+	my $x = Ipblock->is_link_local("notandaddress", "notaprefix");
+}, qr/Invalid IP/, 'bad is_link_local 3');
 
 is(Ipblock->get_covering_block(address=>'192.0.2.5', prefix=>'32'), $subnet,
    'get_covering_block');
@@ -218,6 +271,26 @@ if (!$reserved) {
 	ok(!scalar(grep { $v6subnet->id eq $_->id } @unused_v6), "2: newly inserted IPv6 subnet is NOT unused because of reservations");
 }
 
+my $v6address = Ipblock->insert({
+    address => "2001:2010::10",
+    prefix  => '128',
+    version => 6,
+    status  => 'Static',
+});
+is($v6address->is_address, 1, 'v6 address.is_address');
+is($v6address->status->name, 'Static', 'insert v6 address');
+is($v6container->parent, undef, "v6 container does not and never will have a parent");
+is(scalar($v6container->children), 1, "container still has 1 kid");
+is($v6container->children->first, $v6subnet, "v6 container.children.first = v6 subnet");
+is($v6address->parent, $v6subnet, 'v6address.parent = v6subnet');
+is(scalar($v6subnet->children), 1 + $reserved, "v6subnet now has interesting children");
+is(($v6subnet->children)[$reserved], $v6address, "container.children.last = address");
+
+is($v6address->address, '2001:2010::10', 'v6 address method');
+#is($v6address->address_numeric, '3221225994', 'address_numeric method');
+is($v6address->prefix, 128, 'v6 prefix method');
+is($v6address->version, 6, 'v6 version method');
+
 is(($v6subnet->get_dot_arpa_names)[0], '0.0.0.0.0.0.0.0.0.1.0.2.1.0.0.2.ip6.arpa', 
    'get_dot_arpa_name_v6_62');
 is(($v6subnet->get_dot_arpa_names)[1], '1.0.0.0.0.0.0.0.0.1.0.2.1.0.0.2.ip6.arpa', 
@@ -226,6 +299,10 @@ is(($v6subnet->get_dot_arpa_names)[2], '2.0.0.0.0.0.0.0.0.1.0.2.1.0.0.2.ip6.arpa
    'get_dot_arpa_name_v6_62');
 is(($v6subnet->get_dot_arpa_names)[3], '3.0.0.0.0.0.0.0.0.1.0.2.1.0.0.2.ip6.arpa', 
 'get_dot_arpa_name_v6_62');
+
+is(scalar(Ipblock->search_like(address=>'2001:2010')), 3 + $reserved, 'v6 search_like' );
+is(scalar(Ipblock->search_like(address=>'2001:2010/128')), 1 + $reserved, 'v6 search_like with host prefix' );
+is((Ipblock->search_like(address=>'2001:2010/62'))[0], $v6subnet, 'v6 search_like with subnet prefix' );
 
 my $v6container3 = Ipblock->insert({
     address => "2001:2010::",

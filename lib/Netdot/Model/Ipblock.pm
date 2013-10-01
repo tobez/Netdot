@@ -23,9 +23,12 @@ Netdot::Model::Ipblock - Manipulate IP Address Space
     
 =cut
 
-# We want a quick way to get 127.0.0.1 and 2001:db8::6.
-# "Standard" NetAddr::IP::short would produce 127.1 and 2001:db8::6,
-# while NetAddr::IP::addr would produce 127.0.0.1 and 2001:2010:0:0:0:0:0:1.
+# We want an easy and family-independent way to produce "127.0.0.1"
+# and "2001:db8::6" strings.
+# "Standard" NetAddr::IP::short would produce "127.1" and "2001:db8::6",
+# while NetAddr::IP::addr would produce "127.0.0.1" and
+# "2001:2010:0:0:0:0:0:1".  Hence we monkey patch NetAddr::IP namespace
+# to add a palliative method ->ip().
 *NetAddr::IP::ip = sub {
     $_[0]->version == 4 ? $_[0]->addr : $_[0]->short;
 };
@@ -2802,7 +2805,7 @@ sub prefix {
 sub address {
     my $self = shift;
     $self->isa_object_method('version');
-    return $self->netaddr->addr;
+    return $self->netaddr->ip;
 }
 
 =head2 parent - Return parent
