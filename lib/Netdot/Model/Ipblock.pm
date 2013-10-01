@@ -290,48 +290,36 @@ sub keyword_search {
 sub get_unused_subnets {
     my ($class, %args) = @_;
     $class->isa_class_method('get_unused_subnets');
-    my @ids;
-    my @values;
-    my $query = "SELECT     subnet.id, address.id 
-                 FROM       ipblockstatus, ipblock subnet
-                 LEFT JOIN  ipblock address ON (address.parent=subnet.id)
-                 WHERE      subnet.status=ipblockstatus.id 
-                    AND     ipblockstatus.name='Subnet'";
 
-    if ( $args{version} ){
-	$query .= " AND family(subnet.version) = ?";
-	push @values, $args{version};
+    my (@phrases, @values);
+    push @phrases, <<EOF;
+id in (
+ select id from ipblock o where not exists (
+  select id from ipblock i where o.addr >> i.addr))
+EOF
+    push @phrases, <<EOF;
+status in (
+ select id from ipblockstatus where name = 'Subnet')
+EOF
+    if ($args{version} && $args{version} == 4) {
+	push @phrases, "family(addr) = ?";
+	push @values, 4;
+	push @phrases, "not(addr <<= ?)";
+	push @values, '224.0.0.0/4';
+    } elsif ($args{version} && $args{version} == 6) {
+	push @phrases, "family(addr) = ?";
+	push @values, 6;
+	push @phrases, "not(addr <<= ?)";
+	push @values, 'FF00::/8';
+    } else {
+	push @phrases, "not(addr <<= ?)";
+	push @values, '224.0.0.0/4';
+	push @phrases, "not(addr <<= ?)";
+	push @values, 'FF00::/8';
     }
-    my $dbh = $class->db_Main;
-    my $sth = $dbh->prepare_cached($query);
-    $sth->execute(@values);
-    my $rows = $sth->fetchall_arrayref();
-    my %subs;
-    foreach my $row ( @$rows ){
-	my ($subnet, $address) = @$row;
-	if ( defined $address ){
-	    $subs{$subnet}{$address} = 1;
-	}else{
-	    $subs{$subnet} = {};
-	}
-    }
-
-    foreach my $subnet ( keys %subs ){
-	if ( !keys %{$subs{$subnet}} ){
-	    push @ids, $subnet;
-	}
-    }
-    my @result;
-    foreach my $id ( @ids ){
-	my $ip = Ipblock->retrieve($id);
-	# Ignore multicast blocks
-	if ( $ip->is_multicast ){
-	    next;
-	}
-	push @result, $ip;
-    }
-    @result = sort { $a->address_numeric <=> $b->address_numeric } @result;
-    return @result;
+    return $class->retrieve_from_sql(
+	join(" AND ", @phrases) . " order by addr",
+	@values);
 }
 
 
@@ -718,7 +706,7 @@ sub get_covering_block {
     push @ipargs, $args{prefix} if defined $args{prefix};
     my $ip = NetAddr::IP->new(@ipargs);
     return unless defined $ip;
-    # XXX the retrieval code similar to "parent" sub
+    # XXX the retrieval code is similar to "parent" sub
 
     my $phrase = <<'EOF';
 id in (
