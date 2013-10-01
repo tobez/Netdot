@@ -5,7 +5,6 @@ use warnings;
 use strict;
 use Math::BigInt;
 use NetAddr::IP ':lower';
-use Net::Patricia 1.19_01;
 use Storable qw(nfreeze thaw);
 use Scalar::Util qw(blessed);
 use DBI qw(:sql_types);
