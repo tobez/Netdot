@@ -323,10 +323,12 @@ is($v6subnet->get_next_free(strategy=>'last'), '2001:2010:0:3:ffff:ffff:ffff:fff
 
 is(Ipblock->matches_v4($address->address), 1, 'matches_v4_1');
 is(Ipblock->matches_v4($v6subnet->address), 0, 'matches_v4_2');
+is(Ipblock->matches_v4(), 0, 'matches_v4: nothing does not match');
 
 
 is(Ipblock->matches_v6($v6subnet->address), 1, 'matches_v6_1');
 is(Ipblock->matches_v6($address->address), 0, 'matches_v6_2');
+is(Ipblock->matches_v6(), 0, 'matches_v6: nothing does not match');
 
 is(Ipblock->matches_ip($v6subnet->address), 1, 'matches_ip_1');
 is(Ipblock->matches_ip($address->address), 1, 'matches_ip_2');
@@ -334,6 +336,44 @@ is(Ipblock->matches_ip($address->address), 1, 'matches_ip_2');
 my $ar1 = Ipblock->matches_cidr($address->cidr);
 my $ar2 = ($address->address, $address->prefix);
 is_deeply(\$ar1, \$ar2, 'matches_cidr_1');
+
+my @roots;
+@roots = Ipblock->get_roots();
+ok( scalar(grep {   $container->id eq $_->id } @roots), "get_roots(): v4 container is there");
+ok(!scalar(grep { $v6container->id eq $_->id } @roots), "get_roots(): v6 container is not there");
+ok(!scalar(grep {   $subnet   ->id eq $_->id } @roots), "get_roots(): v4 subnet is not there");
+ok(!scalar(grep { $v6subnet   ->id eq $_->id } @roots), "get_roots(): v6 subnet is not there");
+ok(!scalar(grep {   $address  ->id eq $_->id } @roots), "get_roots(): v4 address is not there");
+ok(!scalar(grep { $v6address  ->id eq $_->id } @roots), "get_roots(): v6 address is not there");
+
+@roots = Ipblock->get_roots(4);
+ok( scalar(grep {   $container->id eq $_->id } @roots), "get_roots(4): v4 container is there");
+ok(!scalar(grep { $v6container->id eq $_->id } @roots), "get_roots(4): v6 container is not there");
+ok(!scalar(grep {   $subnet   ->id eq $_->id } @roots), "get_roots(4): v4 subnet is not there");
+ok(!scalar(grep { $v6subnet   ->id eq $_->id } @roots), "get_roots(4): v6 subnet is not there");
+ok(!scalar(grep {   $address  ->id eq $_->id } @roots), "get_roots(4): v4 address is not there");
+ok(!scalar(grep { $v6address  ->id eq $_->id } @roots), "get_roots(4): v6 address is not there");
+
+@roots = Ipblock->get_roots(6);
+ok(!scalar(grep {   $container->id eq $_->id } @roots), "get_roots(6): v4 container is not there");
+ok( scalar(grep { $v6container->id eq $_->id } @roots), "get_roots(6): v6 container is there");
+ok(!scalar(grep {   $subnet   ->id eq $_->id } @roots), "get_roots(6): v4 subnet is not there");
+ok(!scalar(grep { $v6subnet   ->id eq $_->id } @roots), "get_roots(6): v6 subnet is not there");
+ok(!scalar(grep {   $address  ->id eq $_->id } @roots), "get_roots(6): v4 address is not there");
+ok(!scalar(grep { $v6address  ->id eq $_->id } @roots), "get_roots(6): v6 address is not there");
+
+@roots = Ipblock->get_roots("all");
+ok( scalar(grep {   $container->id eq $_->id } @roots), "get_roots('all'): v4 container is there");
+ok( scalar(grep { $v6container->id eq $_->id } @roots), "get_roots('all'): v6 container is there");
+ok(!scalar(grep {   $subnet   ->id eq $_->id } @roots), "get_roots('all'): v4 subnet is not there");
+ok(!scalar(grep { $v6subnet   ->id eq $_->id } @roots), "get_roots('all'): v6 subnet is not there");
+ok(!scalar(grep {   $address  ->id eq $_->id } @roots), "get_roots('all'): v4 address is not there");
+ok(!scalar(grep { $v6address  ->id eq $_->id } @roots), "get_roots('all'): v6 address is not there");
+
+is(Ipblock->objectify($address), $address, "objectify(\$ipblock)");
+is(Ipblock->objectify($address->id), $address, "objectify(ID)");
+is(Ipblock->objectify($address->address), $address, "objectify(address)");
+is(Ipblock->objectify("8.8.8.8"), undef, "objectify(non-existing address)");
 
 # Delete all records
 $container->delete(recursive=>1);
