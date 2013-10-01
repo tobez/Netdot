@@ -5,6 +5,13 @@ use lib "lib";
 
 BEGIN { use_ok('Netdot::Model::Ipblock'); }
 
+# we don't want logs to clutter syslog/console window
+BEGIN { use_ok('Log::Log4perl::Appender::TestArrayBuffer'); }
+our $appender = Log::Log4perl::Appender::TestArrayBuffer->new(name => 'buffer');
+my $logger = Netdot->log->get_logger('Netdot');
+$logger->add_appender($appender);
+$logger->remove_appender("Syslog");
+
 my $reserved = Ipblock->config->get('SUBNET_AUTO_RESERVE');
 
 my $container = Ipblock->insert({
@@ -31,6 +38,19 @@ is($container->parent, undef, "container still does not have a parent");
 is(scalar($container->children), 1, "container now has 1 kid");
 is($container->children->first, $subnet, "container.children.first = subnet");
 is(scalar($subnet->children), $reserved, "subnet does not have interesting children");
+
+my @unused_v4 = Ipblock->get_unused_subnets(version => 4);
+if (!$reserved) {
+	ok(scalar(grep { $subnet->id eq $_->id } @unused_v4), "1: newly inserted subnet is unused");
+} else {
+	ok(!scalar(grep { $subnet->id eq $_->id } @unused_v4), "1: newly inserted subnet is NOT unused because of reservations");
+}
+@unused_v4 = Ipblock->get_unused_subnets();
+if (!$reserved) {
+	ok(scalar(grep { $subnet->id eq $_->id } @unused_v4), "2: newly inserted subnet is unused");
+} else {
+	ok(!scalar(grep { $subnet->id eq $_->id } @unused_v4), "2: newly inserted subnet is NOT unused because of reservations");
+}
 
 my $address = Ipblock->insert({
     address => "192.0.2.10",
@@ -93,7 +113,17 @@ is($ancestors[1], $container, 'get_ancestors');
  
 my ($s,$p) = Ipblock->get_subnet_addr( address => $address->address,
 				       prefix  => 25 );
-is($s, $subnet->address, 'get_subnet_addr');
+is($s, $subnet->address, 'get_subnet_addr address ok');
+is($p, 25, 'get_subnet_addr prefix ok');
+$s = Ipblock->get_subnet_addr( address => $address->address,
+				       prefix  => 25 );
+is($s, $subnet->address, 'scalar(get_subnet_addr) address ok');
+like(exception {
+	my $x = Ipblock->get_subnet_addr(address=>'muha', prefix => 88);
+}, qr/Invalid IP/, 'bad get_subnet_addr');
+
+ok(Ipblock->within('127.0.0.1', '127.0.0.0/8'), "127.0.0.1 is within 127.0.0.0/8");
+ok(!Ipblock->within('192.168.0.1', '127.0.0.0/8'), "192.168.0.1 is NOT within 127.0.0.0/8");
 
 my $hosts = Ipblock->get_host_addrs( $subnet->address ."/". $subnet->prefix );
 is($hosts->[0], '192.0.2.1', 'get_host_addrs');
@@ -174,6 +204,19 @@ my $v6subnet = Ipblock->insert({
     status  => 'Subnet',
 });
 is($v6subnet->parent, $v6container, 'v6_parent');
+
+my @unused_v6 = Ipblock->get_unused_subnets(version => 6);
+if (!$reserved) {
+	ok(scalar(grep { $v6subnet->id eq $_->id } @unused_v6), "1: newly inserted IPv6 subnet is unused");
+} else {
+	ok(!scalar(grep { $v6subnet->id eq $_->id } @unused_v6), "1: newly inserted IPv6 subnet is NOT unused because of reservations");
+}
+@unused_v6 = Ipblock->get_unused_subnets();
+if (!$reserved) {
+	ok(scalar(grep { $v6subnet->id eq $_->id } @unused_v6), "2: newly inserted IPv6 subnet is unused");
+} else {
+	ok(!scalar(grep { $v6subnet->id eq $_->id } @unused_v6), "2: newly inserted IPv6 subnet is NOT unused because of reservations");
+}
 
 is(($v6subnet->get_dot_arpa_names)[0], '0.0.0.0.0.0.0.0.0.1.0.2.1.0.0.2.ip6.arpa', 
    'get_dot_arpa_name_v6_62');
