@@ -249,6 +249,7 @@ my $v6container = Ipblock->insert({
     status  => 'Container',
 });
 is(($v6container->get_dot_arpa_names)[0], '0.1.0.2.1.0.0.2.ip6.arpa', 'get_dot_arpa_name_v6_32');
+is($v6container->is_address, 0, '!v6 container.is_address');
 
 my $v6subnet = Ipblock->insert({
     address => "2001:2010::",
@@ -257,6 +258,7 @@ my $v6subnet = Ipblock->insert({
     status  => 'Subnet',
 });
 is($v6subnet->parent, $v6container, 'v6_parent');
+is($v6subnet->is_address, 0, '!v6 subnet.is_address');
 
 my @unused_v6 = Ipblock->get_unused_subnets(version => 6);
 if (!$reserved) {
@@ -332,6 +334,7 @@ is(Ipblock->matches_v6(), 0, 'matches_v6: nothing does not match');
 
 is(Ipblock->matches_ip($v6subnet->address), 1, 'matches_ip_1');
 is(Ipblock->matches_ip($address->address), 1, 'matches_ip_2');
+is(Ipblock->matches_ip(), 0, 'matches_ip: nothing does not match');
 
 my $ar1 = Ipblock->matches_cidr($address->cidr);
 my $ar2 = ($address->address, $address->prefix);
