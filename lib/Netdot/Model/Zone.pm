@@ -540,7 +540,7 @@ sub get_all_records {
 	    }
 	}
 	$rec{$name}{NS}{"$nsdname"}            = $rrnsttl    if ($nsdname);
-	$rec{$name}{DS}{"$dskeytag $dsalgorithm $dsdigesttype $dsdigest"}           
+	$rec{$name}{DS}{"$dskeytag $dsalgorithm $dsdigesttype $dsdigest"}
 	                                       = $rrdsttl    if ($dskeytag && $dsalgorithm && 
 								 $dsdigesttype && $dsdigest);
 	$rec{$name}{MX}{"$mxpref $exchange"}   = $rrmxttl    if (defined($mxpref) && $exchange);

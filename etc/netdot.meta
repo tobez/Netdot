@@ -367,6 +367,71 @@ $meta = {
       ]
     }
   },
+  ASN => {
+    table_db_name => 'asn',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      description => {
+        default => '',
+        description => 'A short description of this ASN',
+        length => '255',
+        nullable => 1,
+        tag => 'Description',
+        type => 'varchar'
+      },
+      info => {
+        default => '',
+        description => 'Comments',
+        length => '',
+        nullable => 1,
+        tag => 'Comments',
+        type => 'text'
+      },
+      number => {
+        default => '',
+        description => 'Autonomous System (AS) Number',
+        length => '',
+        nullable => 0,
+        tag => 'Number',
+        type => 'bigint'
+      },
+      rir => {
+        default => '',
+        description => 'Regional Internet Registry from which ASN was obtained (AFRINIC, APNIC, ARIN, LACNIC, RIPE)',
+        length => '255',
+        nullable => 1,
+        tag => 'RIR',
+        type => 'varchar'
+      },
+    },
+    description => 'Autonomous System Number',
+    has_history => 0,
+    index => [ ['rir'] ],
+    isjoin => '0',
+    label => ['number'],
+    primary_key => 'id',
+    unique => [ ['number'] ],
+    views => {
+      all => [
+        'number',
+        'rir',
+        'description',
+        'info',
+      ],
+      brief => [
+        'number',
+        'rir',
+        'description',
+      ]
+    }
+  },
   Asset => {
     table_db_name => 'asset',
     columns => {
@@ -602,6 +667,19 @@ $meta = {
         tag => 'Peer ID',
         type => 'varchar'
       },
+      contactlist => {
+        default => '',
+        description => 'Who to contact about this peering session. Also used for Nagios alarms.',
+        length => '',
+        linksto => {
+          cascade => 'Nullify',
+          method => 'peerings',
+          table => 'ContactList'
+        },
+        nullable => 0,
+        tag => 'Contact List',
+        type => 'bigint'
+      },
       device => {
         default => '',
         description => 'Device where BGP peering exists (the local device, that is)',
@@ -644,6 +722,14 @@ $meta = {
         tag => 'Comments',
         type => 'text'
       },
+      last_changed => {
+        default => '',
+        description => 'Time when the state last changed',
+        length => '',
+        nullable => 0,
+        tag => 'Last Changed',
+        type => 'timestamp'
+      },
       max_v4_prefixes => {
         default => '',
         description => 'Maximum number of IPv4 prefixes we will permit from this peer',
@@ -668,18 +754,21 @@ $meta = {
         tag => 'Monitored?',
         type => 'bool'
       },
-      monitorstatus => {
+      state => {
         default => '',
-        description => 'Monitoring Status of this Peering',
-        length => '',
-        linksto => {
-          cascade => 'Fail',
-          method => 'bgppeers',
-          table => 'MonitorStatus'
-        },
+        description => 'Peering state',
+        length => '255',
         nullable => 1,
-        tag => 'Monitored Status',
-        type => 'bigint'
+        tag => 'State',
+        type => 'varchar'
+      },
+      peer_group => {
+        default => '',
+        description => 'Name of the peer group',
+        length => '255',
+        nullable => 1,
+        tag => 'Peer Group',
+        type => 'varchar'
       },
     },
     description => 'A BGP Peering',
@@ -707,11 +796,14 @@ $meta = {
         'entity',
         'bgppeerid',
         'bgppeeraddr',
+        'state',
+	'last_changed',
 	'max_v4_prefixes',
 	'max_v6_prefixes',
         'monitored',
-        'monitorstatus',
 	'authkey',
+	'peer_group',
+	'contactlist',
 	'info',
       ],
       brief => [
@@ -1953,9 +2045,14 @@ $meta = {
         default => '',
         description => 'Border Gateway Protocol Local Autonomous System number',
         length => '',
+        linksto => {
+          cascade => 'Nullify',
+          method => 'devices',
+          table => 'ASN'
+        },
         nullable => 1,
         tag => 'BGP Local AS',
-        type => 'integer'
+        type => 'bigint'
       },
       canautoupdate => {
         default => '',
@@ -4838,10 +4935,15 @@ $meta = {
       asn => {
         default => '',
         description => 'Autonomous System Number where this block originates from',
-        length => '255',
+        length => '',
+        linksto => {
+          cascade => 'Nullify',
+          method => 'ipblocks',
+          table => 'ASN'
+        },
         nullable => 1,
         tag => 'ASN',
-        type => 'varchar'
+        type => 'bigint'
       },
       description => {
         default => '',
@@ -4909,7 +5011,7 @@ $meta = {
         description => 'Entity that owns this block',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Nullify',
           method => 'owned_blocks',
           table => 'Entity'
         },
@@ -4943,7 +5045,7 @@ $meta = {
         description => 'Entity that uses this block',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Nullify',
           method => 'used_blocks',
           table => 'Entity'
         },
@@ -6276,12 +6378,7 @@ $meta = {
       'key_tag',
     ],
     primary_key => 'id',
-    unique => [
-      [
-        'rr',
-        'key_tag'
-      ]
-    ],
+    unique => [[ 'rr', 'key_tag', 'algorithm', 'digest_type' ]],
     views => {
       all => [
         'rr',

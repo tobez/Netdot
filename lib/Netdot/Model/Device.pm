@@ -730,7 +730,7 @@ sub get_snmp_info {
     }
 
     if ( $args{bgp_peers} || $self->config->get('ADD_BGP_PEERS')) {
-	push @SMETHODS, qw( bgp_peers bgp_peer_id bgp_peer_as );
+	push @SMETHODS, qw( bgp_peers bgp_peer_id bgp_peer_as bgp_peer_state );
     }
 
     my %hashes;
@@ -927,8 +927,11 @@ sub get_snmp_info {
 
     # Set some values specific to device types
     if ( $dev{ipforwarding} ){
-	$dev{bgplocalas} =  $sinfo->bgp_local_as();
-	$dev{bgpid}      =  $sinfo->bgp_id();
+	if ( my $local_as = $sinfo->bgp_local_as() ){
+	    my $asn = ASN->find_or_create({number=>$local_as});
+	    $dev{bgplocalas} = $asn;
+	}
+	$dev{bgpid} = $sinfo->bgp_id();
     }
 
     ################################################################
@@ -1208,6 +1211,9 @@ sub get_snmp_info {
 		}
 	    }else{
 		$logger->warn("Could not determine AS number of peer $peer");
+	    }
+	    if ( my $state = $hashes{'bgp_peer_state'}->{$peer} ){
+		$dev{bgp_peer}{$peer}{state} = $state;
 	    }
 	}
     }
@@ -2634,7 +2640,9 @@ sub update_bgp_peering {
     my %pstate = (device      => $self,
 		  entity      => $entity,
 		  bgppeerid   => $peer->{bgppeerid},
-		  bgppeeraddr => $peer->{address});
+		  bgppeeraddr => $peer->{address},
+		  state       => $peer->{state},
+	);
 	
     # Check if peering exists
     foreach my $peerid ( keys %{ $old_peerings } ){
@@ -2652,6 +2660,11 @@ sub update_bgp_peering {
     }
     if ( $p ){
 	# Update in case anything has changed
+	# Only change last_changed if the state has changed
+	if ( defined $p->state && defined $pstate{state} && 
+	     $p->state ne $pstate{state} ){
+	    $pstate{last_changed} = $self->timestamp;
+	}
 	my $r = $p->update(\%pstate);
 	$logger->debug(sub{ sprintf("%s: Updated Peering with: %s. ", $host, $entity->name)}) if $r;
 	
@@ -2663,6 +2676,11 @@ sub update_bgp_peering {
 	}else{
 	    $pstate{monitored} = 0;
 	}
+	$pstate{last_changed} = $self->timestamp;
+
+	# Assign the first available contactlist from the device list
+	$pstate{contactlist} = $self->contacts->first->contactlist;
+
 	$p = BGPPeering->insert(\%pstate);
 	my $peer_label;
 	$peer_label = $entity->name  if ($entity && ref($entity)) ;
@@ -2913,7 +2931,7 @@ sub info_update {
 
     ##############################################################
     # Fill in some basic device info
-    foreach my $field ( qw( community snmp_version layers ipforwarding sysname 
+    foreach my $field ( qw( community layers ipforwarding sysname 
                             sysdescription syslocation os collect_arp collect_fwt ) ){
 	$devtmp{$field} = $info->{$field} if exists $info->{$field};
     }
@@ -2952,19 +2970,24 @@ sub info_update {
     }
     $devtmp{asset_id} = $asset->id if $asset;
     
-    ##############################################################
-    if ( $asset && $asset->product_id && $argv{device_is_new} ){
-	my $val = $self->_assign_device_monitored($asset->product_id);
-	$devtmp{monitored}    = $val;
-	$devtmp{snmp_polling} = $val;
-	$devtmp{snmp_target}->update({monitored => $val});
-    }
 
     ##############################################################
-    if ( $argv{device_is_new} && 
-	 (my $g = $self->_assign_monitor_config_group($info)) ){
-	$devtmp{monitor_config}       = 1;
-	$devtmp{monitor_config_group} = $g;
+    # Things to do only when creating the device
+    if ( $argv{device_is_new} ){
+	
+	$devtmp{snmp_version} = $info->{snmp_version} if exists $info->{snmp_version};
+	
+	if ( $asset && $asset->product_id  ){
+	    my $val = $self->_assign_device_monitored($asset->product_id);
+	    $devtmp{monitored}    = $val;
+	    $devtmp{snmp_polling} = $val;
+	    $devtmp{snmp_target}->update({monitored => $val});
+	}
+	
+	if ( my $g = $self->_assign_monitor_config_group($info) ){
+	    $devtmp{monitor_config}       = 1;
+	    $devtmp{monitor_config_group} = $g;
+	}
     }
 
     ##############################################################
@@ -3600,7 +3623,7 @@ sub bgppeers_by_entity {
     ip        <address> Return peers whose Remote IP matches <address>
     as        <integer> Return peers whose AS matches <integer>
     type      <string>  Return peers of type [internal|external|all*]
-    sort      <string>  Sort by [entity*|asnumber|asname|id|ip]
+    sort      <string>  Sort by [entity*|asnumber|asname|id|ip|state]
 
     (*) default
 
@@ -3628,9 +3651,9 @@ sub get_bgp_peers {
 	@peers = grep { $_->asnumber eq $argv{as} } $self->bgppeers;	
     }elsif ( $argv{type} ){
 	if ( $argv{type} eq "internal" ){
-	    @peers = grep { defined $_->entity && $_->entity->asnumber == $self->bgplocalas } $self->bgppeers;
+	    @peers = grep { defined $_->entity && $_->entity->asnumber == $self->bgplocalas->number } $self->bgppeers;
 	}elsif ( $argv{type} eq "external" ){
-	    @peers = grep { defined $_->entity && $_->entity->asnumber != $self->bgplocalas } $self->bgppeers;
+	    @peers = grep { defined $_->entity && $_->entity->asnumber != $self->bgplocalas->number } $self->bgppeers;
 	}elsif ( $argv{type} eq "all" ){
 	    @peers = $self->bgppeers();
 	}else{
@@ -3646,6 +3669,8 @@ sub get_bgp_peers {
 	return $self->bgppeers_by_ip(\@peers);
     }elsif( $argv{sort} eq "id" ){
 	return $self->bgppeers_by_id(\@peers);
+    }elsif( $argv{sort} eq "state" ){
+	@peers = sort { $a->state cmp $b->state } @peers; 
     }else{
 	$self->throw_fatal("Model::Device::get_bgp_peers: Invalid sort argument: $argv{sort}");
     }
@@ -4035,34 +4060,21 @@ sub _get_snmp_session {
 	# Reset dead counter and snmp_down flag
 	$uargs{snmp_conn_attempts} = 0; $uargs{snmp_down} = 0;
 
-	# We might have tried a different SNMP version and community above. Rectify DB if necessary
-	$uargs{snmp_version} = $sinfoargs{Version}   if ( !$self->snmp_version || 
-							  $self->snmp_version ne $sinfoargs{Version}  );
-	$uargs{snmp_bulk}    = $sinfoargs{BulkWalk}  if ( !$self->snmp_bulk    || 
-							  $self->snmp_bulk ne $sinfoargs{BulkWalk} );
+	# Fill out some SNMP parameters if they are not set
+	$uargs{snmp_version} = $sinfoargs{Version}   unless defined($self->snmp_version);
+	$uargs{snmp_bulk}    = $sinfoargs{BulkWalk}  unless defined($self->snmp_bulk);
+
 	if ( $sinfoargs{Version} == 3 ){
 	    # Store v3 parameters
-	    $uargs{snmp_securityname} = $sinfoargs{SecName} if (
-		!$self->snmp_securityname  || $self->snmp_securityname  ne $sinfoargs{SecName});
-	    
-	    $uargs{snmp_securitylevel} = $sinfoargs{SecLevel}  if (
-		!$self->snmp_securitylevel || $self->snmp_securitylevel ne $sinfoargs{SecLevel});
-
-	    $uargs{snmp_authprotocol} = $sinfoargs{AuthProto} if (
-		!$self->snmp_authprotocol || $self->snmp_authprotocol ne $sinfoargs{AuthProto});
-
-	    $uargs{snmp_authkey} = $sinfoargs{AuthPass}  if (
-		!$self->snmp_authkey || $self->snmp_authkey ne $sinfoargs{AuthPass});
-
-	    $uargs{snmp_privprotocol}  = $sinfoargs{PrivProto} if (
-		!$self->snmp_privprotocol || $self->snmp_privprotocol ne $sinfoargs{PrivProto});
-
-	    $uargs{snmp_privkey} = $sinfoargs{PrivPass}  if (
-		!$self->snmp_privkey || $self->snmp_privkey ne $sinfoargs{PrivPass});
+	    $uargs{snmp_securityname}  = $sinfoargs{SecName}   unless defined($self->snmp_securityname);	    
+	    $uargs{snmp_securitylevel} = $sinfoargs{SecLevel}  unless defined($self->snmp_securitylevel);
+	    $uargs{snmp_authprotocol}  = $sinfoargs{AuthProto} unless defined($self->snmp_authprotocol);
+	    $uargs{snmp_authkey}       = $sinfoargs{AuthPass}  unless defined($self->snmp_authkey);
+	    $uargs{snmp_privprotocol}  = $sinfoargs{PrivProto} unless defined($self->snmp_privprotocol);
+	    $uargs{snmp_privkey}       = $sinfoargs{PrivPass}  unless defined($self->snmp_privkey);
 
 	}else{
-	    $uargs{community} = $sinfoargs{Community} if (!$self->community || 
-							  $self->community ne $sinfoargs{Community});
+	    $uargs{community} = $sinfoargs{Community} unless defined($self->community);
 	}
 	$self->update(\%uargs) if ( keys %uargs );
     }

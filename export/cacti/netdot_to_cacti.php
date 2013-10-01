@@ -26,6 +26,7 @@ include_once($config["base_path"]."/lib/snmp.php");
 include_once($config["base_path"]."/lib/data_query.php");
 include_once($config["base_path"]."/lib/api_device.php");
 include_once($config["base_path"]."/lib/api_tree.php");
+include_once($config["base_path"].'/lib/tree.php');
 
 /* process calling arguments */
 $parms = $_SERVER["argv"];
@@ -90,8 +91,10 @@ if (!$result) {
 
 $q = $netdot_db->Execute("
                 SELECT     rr.name, zone.name, ipblock.address, site.name, p.name, p.sysobjectid, pt.name, 
-                           d.id, d.snmp_managed, d.snmp_polling, d.community, d.snmp_version, e.name, m.name 
-                FROM      asset a, rr, zone, producttype pt, device d
+                           d.id, d.snmp_managed, d.snmp_polling, d.community, d.snmp_version, 
+                           d.snmp_authkey, d.snmp_authprotocol, d.snmp_privkey, d.snmp_privprotocol,
+                           d.snmp_securityname, e.name, m.name 
+                FROM       asset a, rr, zone, producttype pt, device d
                 LEFT JOIN (site) ON (d.site=site.id)
                 LEFT JOIN (ipblock) ON (d.snmp_target=ipblock.id)
                 LEFT JOIN (entity e) ON (d.used_by=e.id),
@@ -112,7 +115,9 @@ if (!$q) {
 
 while ($row = $q->FetchRow()) {
   list($name, $domain, $iaddress, $site, $product, $sysobjectid, $ptype, 
-       $netdot_id, $managed, $enabled, $community, $version, $used_by, $mfg) = $row; 
+       $netdot_id, $managed, $enabled, $community, $snmp_version, 
+       $snmp_password, $snmp_auth_protocol, $snmp_priv_passphrase, $snmp_priv_protocol, 
+       $snmp_username, $used_by, $mfg) = $row; 
 
   if (!$managed) {
     continue;
@@ -141,11 +146,15 @@ while ($row = $q->FetchRow()) {
   if (!$ptype){
     $ptype = 'unknown';
   }
-  if (!$version){
-    $version = 2;
+  if (!$snmp_version){
+    $snmp_version = 2;
   }
   if (!$community){
     $community = "public";
+  }
+  // This is a new requirement of api_device_save as of Cacti 0.8.8
+  if ($snmp_priv_protocol == 'AES'){
+    $snmp_priv_protocol = 'AES128';
   }
   $disable = ($enabled)? 0 : 1;
   
@@ -191,12 +200,17 @@ while ($row = $q->FetchRow()) {
 
   $community = trim($community);
 
-  $groups[$group][$host]["netdot_id"]   = $netdot_id;
-  $groups[$group][$host]["ip"]          = $address;
-  $groups[$group][$host]["template_id"] = $template_id;
-  $groups[$group][$host]["disable"]     = $disable;
-  $groups[$group][$host]["snmp_ver"]    = $version;
-  $groups[$group][$host]["community"]   = $community;
+  $groups[$group][$host]["netdot_id"]             = $netdot_id;
+  $groups[$group][$host]["ip"]                    = $address;
+  $groups[$group][$host]["template_id"]           = $template_id;
+  $groups[$group][$host]["disable"]               = $disable;
+  $groups[$group][$host]["snmp_version"]          = $snmp_version;
+  $groups[$group][$host]["snmp_username"]         = $snmp_username;
+  $groups[$group][$host]["snmp_password"]         = $snmp_password;
+  $groups[$group][$host]["snmp_auth_protocol"]    = $snmp_auth_protocol;
+  $groups[$group][$host]["snmp_priv_passphrase"]  = $snmp_priv_passphrase;
+  $groups[$group][$host]["snmp_priv_protocol"]    = $snmp_priv_protocol;
+  $groups[$group][$host]["community"]             = $community;
 
  }
 
@@ -243,12 +257,17 @@ foreach ($groups as $group => $hosts){
   }
 
   foreach ($hosts as $description => $attr){
-    $netdot_id   = $attr["netdot_id"];
-    $ip          = $attr["ip"];
-    $template_id = $attr["template_id"];
-    $disable     = $attr["disable"];
-    $snmp_ver    = $attr["snmp_ver"];
-    $community   = $attr["community"];
+    $netdot_id            = $attr["netdot_id"];
+    $ip                   = $attr["ip"];
+    $template_id          = $attr["template_id"];
+    $disable              = $attr["disable"];
+    $snmp_version         = $attr["snmp_version"];
+    $snmp_username        = $attr["snmp_username"];
+    $snmp_password        = $attr["snmp_password"];
+    $snmp_auth_protocol   = $attr["snmp_auth_protocol"];
+    $snmp_priv_passphrase = $attr["snmp_priv_passphrase"];
+    $snmp_priv_protocol   = $attr["snmp_priv_protocol"];
+    $community            = $attr["community"];
     
     $hostId = 0;
     
@@ -274,8 +293,8 @@ foreach ($groups as $group => $hosts){
     }
 
     /* validate snmp version */
-    if ($snmp_ver != "1" && $snmp_ver != "2" && $snmp_ver != "3") {
-      echo "ERROR: Invalid snmp version ($snmp_ver)\n";
+    if ($snmp_version != "1" && $snmp_version != "2" && $snmp_version != "3") {
+      echo "ERROR: Invalid snmp version ($snmp_version)\n";
       exit(1);
     }
 
@@ -296,7 +315,7 @@ foreach ($groups as $group => $hosts){
     /* Add or Update Device */
 
     if ($hostId){
-      debug("$description: Updating device id $hostId ($description) template \"" . $hostTemplates[$template_id] . "\" using SNMP v$snmp_ver with community \"$community\"");
+      debug("$description: Updating device id $hostId ($description) template \"" . $hostTemplates[$template_id] . "\" using SNMP v$snmp_version");
     }else{
 
       /* Do not bother creating device if it is disabled */
@@ -304,10 +323,10 @@ foreach ($groups as $group => $hosts){
 	continue;
       }
       
-      echo "$description: Adding device ($description) template \"" . $hostTemplates[$template_id] . "\" using SNMP v$snmp_ver with community \"$community\"\n";
+      echo "$description: Adding device ($description) template \"" . $hostTemplates[$template_id] . "\" using SNMP v$snmp_version\n";
     }
     $hostId = api_device_save($hostId, $template_id, $description, $ip,
-			      $community, $snmp_ver, $snmp_username, $snmp_password,
+			      $community, $snmp_version, $snmp_username, $snmp_password,
 			      $snmp_port, $snmp_timeout, $disable, $avail, $ping_method,
 			      $ping_port, $ping_timeout, $ping_retries, $notes,
 			      $snmp_auth_protocol, $snmp_priv_passphrase,
@@ -375,6 +394,7 @@ foreach ($groups as $group => $hosts){
 	$GraphAttr["hostTemplateId"] = $template_id;
 	$GraphAttr["hostId"]         = $hostId;
 	$GraphAttr["description"]    = $description;
+	$GraphAttr["ignoreIntsLike"] = $ignoreIntsLike;
 	debug("$description: Creating ds graphs: $descr");
 	$dsGraphsCreated = create_ds_graphs($GraphAttr);
 	if ( $dsGraphsCreated ){
@@ -429,6 +449,7 @@ function create_ds_graphs($args) {
   $description     = $args["description"];
   $queryTypeIds    = $args["queryTypeIds"];
   $snmpQueryId     = $args["snmpQueryId"];
+  $ignoreIntsLike  = $args["ignoreIntsLike"];
 
   if (!isset($hostId) || !isset($description) || !isset($queryTypeIds) || !isset($snmpQueryId)){
     echo "ERROR: create_ds_graph: Missing required arguments\n";
@@ -471,10 +492,55 @@ function create_ds_graphs($args) {
    if (isset($args["snmpCriteria"]) && $args["snmpCriteria"] != ""){
      $indexes_query .= " AND ". $args["snmpCriteria"];
    }
-   
+
    $snmpIndexes = db_fetch_assoc($indexes_query);
+
+   // Interfaces to ignore
+
+   if($snmpQueryId == 1 && count($snmpIndexes) && 
+      isset($ignoreIntsLike) && count($ignoreIntsLike)){
+     $ignQuery = "SELECT snmp_index
+                  FROM   host_snmp_cache
+                  WHERE  host_id='$hostId'
+                    AND  snmp_query_id=1
+                    AND  field_name='ifDescr'";
+     
+     $patts = array();
+     foreach ($ignoreIntsLike as $patt){
+       array_push($patts, "field_value LIKE '$patt'");
+     }
+
+     $crit = implode(' OR ', $patts);
+     $ignQuery .= " AND ($crit)";
+
+     debug('$ignQuery is: '.$ignQuery);
+     $ignIndexes = db_fetch_assoc($ignQuery);
+
+     // Make into an associative array for faster lookups
+     $ignHash = array();
+     foreach ($ignIndexes as $row){
+       $ignHash[$row["snmp_index"]] = TRUE;
+     }
+
+     debug('$ignHash has: ');
+     debug(var_export($ignHash));
+     
+     if (count($ignHash)){
+       // Now exclude the indexes that matched the ignore patterns
+       $temparr = array();
+       foreach ($snmpIndexes as $row){
+	 if (!isset($ignHash[$row["snmp_index"]])) {
+	   array_push($temparr, $row);
+	 }
+       }
+       $snmpIndexes = $temparr;
+     }
+   }
+
+   debug('$snmpIndexes has: '); 
+   debug(var_export($snmpIndexes));
    
-   if (sizeof($snmpIndexes)) {
+   if (count($snmpIndexes)) {
     $graphsCreated = 0;
     $graphs = db_fetch_assoc("SELECT id, snmp_index, graph_template_id
                               FROM   graph_local
