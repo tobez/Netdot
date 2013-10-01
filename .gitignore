@@ -4,3 +4,4 @@ etc/Site.conf
 etc/schema.Pg
 var/pollstats.rrd
 .*.swp
+cover_db/
