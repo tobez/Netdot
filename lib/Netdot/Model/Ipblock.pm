@@ -665,7 +665,8 @@ sub reserve_first_n {
     my $num = $class->config->get('SUBNET_AUTO_RESERVE');
     if ( $num && $num < $self->num_addr ){
 	for ( 1..$num ){
-	    my $addr = $self->get_next_free();
+	    my $strategy = $class->config->get('SUBNET_AUTO_RESERVE_STRATEGY');
+	    my $addr = $self->get_next_free(strategy=>$strategy);
 	    eval {
 		$class->insert({address=>$addr, status=>'Reserved', 
 				no_update_tree=>1,
@@ -2688,8 +2689,11 @@ sub get_addresses_by {
     LEFT JOIN (rraddr CROSS JOIN rr) ON (rraddr.ipblock=ipblock.id AND rraddr.rr=rr.id)
     LEFT JOIN entity ON (ipblock.used_by=entity.id)
     WHERE     ipblock.parent=$id
-      AND     ipblock.status=ipblockstatus.id
-    GROUP BY  ipblock.id
+      AND     ipblock.status=ipblockstatus.id ";
+    if ( ($self->version == 6) && ($self->config->get('IPV6_HIDE_DISCOVERED')) ) {
+       $query.=" AND     ipblockstatus.name != \"Discovered\" ";
+    }
+    $query .= "GROUP BY ipblock.id 
     ORDER BY  $sort2field{$sort}";
 
     my $dbh  = $self->db_Main();
