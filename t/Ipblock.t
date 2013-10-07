@@ -2,17 +2,19 @@ use strict;
 use Test::More;
 use Test::Fatal;
 use lib "lib";
+use lib "t";
+use test_helpers;
 
 BEGIN { use_ok('Netdot::Model::Ipblock'); }
 
-# we don't want logs to clutter syslog/console window
-BEGIN { use_ok('Log::Log4perl::Appender::TestArrayBuffer'); }
-our $appender = Log::Log4perl::Appender::TestArrayBuffer->new(name => 'buffer');
-my $logger = Netdot->log->get_logger('Netdot');
-$logger->add_appender($appender);
-$logger->remove_appender("Syslog");
+test_helpers::disable_logging();
+test_helpers::settable_config();
 
-my $reserved = Ipblock->config->get('SUBNET_AUTO_RESERVE');
+for my $reserved (0, 5) {
+# incorrect indentation kept here because it makes more sense
+
+Ipblock->config->set("SUBNET_AUTO_RESERVE", $reserved);
+is(Ipblock->config->get('SUBNET_AUTO_RESERVE'), $reserved, "FURTHER TESTS WITH SUBNET_AUTO_RESERVE OF $reserved");
 
 like(exception {
 	my $x = Ipblock->insert;
@@ -187,8 +189,10 @@ like(exception {
 	my $x = Ipblock->is_link_local("notandaddress", "notaprefix");
 }, qr/Invalid IP/, 'bad is_link_local 3');
 
-is(Ipblock->get_covering_block(address=>'192.0.2.5', prefix=>'32'), $subnet,
+is(Ipblock->get_covering_block(address=>'192.0.2.8', prefix=>'32'), $subnet,
    'get_covering_block');
+is(Ipblock->get_covering_block(address=>'192.0.2.10', prefix=>'32'), $address,
+   'get_covering_block - self'); # XXX not sure this is how get_covering_block() should behave
 
 
 is(Ipblock->numhosts(24), 256, 'numhosts');
@@ -208,6 +212,61 @@ is($subnet->get_next_free(strategy=>'last'), '192.0.2.126', 'get_next_free(last)
 # XXX throws_ok invalid strategy
 
 is(($subnet->get_dot_arpa_names)[0], '0-25.2.0.192.in-addr.arpa', 'get_dot_arpa_names_v4_25');
+
+my $ip_status = (IpblockStatus->search(name=>'Discovered'))[0];
+ok($ip_status, "can get ip status");
+Ipblock->fast_update({
+	"192.0.2.10" => {
+		prefix    => 32,
+		version   => 4,
+		status    => $ip_status,
+		timestamp => Ipblock->timestamp,
+	},
+});
+is(Ipblock->search(address=>'192.0.2.10')->first->status->name, "Static",
+	'fast update 1: does not change existing things');
+is(Ipblock->search(address=>'192.0.2.11')->first, undef,
+	'fast update 1: does not add things not asked');
+
+Ipblock->fast_update({
+	"192.0.2.11" => {
+		prefix    => 32,
+		version   => 4,
+		status    => $ip_status,
+		timestamp => Ipblock->timestamp,
+	},
+});
+is(Ipblock->search(address=>'192.0.2.11')->first->status->name, "Discovered",
+	'fast update 2: inserts new things');
+is(Ipblock->search(address=>'192.0.2.12')->first, undef,
+	'fast update 2: does not add things not asked');
+
+Ipblock->fast_update({
+	"192.0.2.10" => {
+		prefix    => 32,
+		version   => 4,
+		status    => $ip_status,
+		timestamp => Ipblock->timestamp,
+	},
+	"192.0.2.11" => {
+		prefix    => 32,
+		version   => 4,
+		status    => $ip_status,
+		timestamp => Ipblock->timestamp,
+	},
+	"192.0.2.12" => {
+		prefix    => 32,
+		version   => 4,
+		status    => $ip_status,
+		timestamp => Ipblock->timestamp,
+	},
+});
+is(Ipblock->search(address=>'192.0.2.10')->first->status->name, "Static",
+	'fast update 3: does not change existing things');
+is(Ipblock->search(address=>'192.0.2.12')->first->status->name, "Discovered",
+	'fast update 3: inserts new things');
+is(Ipblock->search(address=>'192.0.2.13')->first, undef,
+	'fast update 3: does not add things not asked');
 
 my $subnet2 = Ipblock->insert({
     address => "192.0.2.160",
@@ -382,5 +441,7 @@ is(Ipblock->objectify("8.8.8.8"), undef, "objectify(non-existing address)");
 $container->delete(recursive=>1);
 $v6container->delete(recursive=>1);
 isa_ok($container, 'Class::DBI::Object::Has::Been::Deleted', 'delete');
+
+} # and then repeat everything again with a different SUBNET_AUTO_RESERVE value
 
 done_testing();

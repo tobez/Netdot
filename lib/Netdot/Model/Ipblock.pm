@@ -917,49 +917,40 @@ sub fast_update{
     $logger->debug(sub{"Ipblock::fast_update: Updating IP addresses in DB" });
     my $dbh = $class->db_Main;
 
-    if ( $class->config->get('DB_TYPE') eq 'mysql' ){
-	# Take advantage of MySQL's "ON DUPLICATE KEY UPDATE" 
-	my $sth = $dbh->prepare_cached("INSERT INTO ipblock
-                                        (address,prefix,version,status,first_seen,last_seen)
-                                        VALUES (?, ?, ?, ?, ?, ?)
-                                        ON DUPLICATE KEY UPDATE last_seen=VALUES(last_seen);");
-
-	foreach my $address ( keys %$ips ){
-	    my $attrs = $ips->{$address};
-	    # Convert address to decimal format
-	    my $dec_addr = $class->ip2int($address);
-	    $sth->execute($dec_addr, $attrs->{prefix}, $attrs->{version},
-			  $attrs->{status}, $attrs->{timestamp}, $attrs->{timestamp});
-	}
-    }else{
-
-	# Build SQL queries
-	my $sth1 = $dbh->prepare_cached("UPDATE ipblock SET last_seen=? WHERE address=?");	
+    # We use the "upsert" trick described in
+    # http://stackoverflow.com/a/6527838/420431
+    # to avoid handling exceptions.
+    # Both UPDATE and INSERT statements are constructed
+    # in such a way so they both do not fail,
+    # unless there is a race, in which case the transaction might fail,
+    # but this is totally fine, since timestamp will be pretty fresh
+    # anyway.
+    my $sth1 = $dbh->prepare_cached(
+    	"UPDATE ipblock SET last_seen=? WHERE addr=?");
 	
-	my $sth2 = $dbh->prepare_cached("INSERT INTO ipblock 
-                                          (address,prefix,version,status,first_seen,last_seen)
-                                           VALUES (?, ?, ?, ?, ?, ?)");
+    my $sth2 = $dbh->prepare_cached("INSERT INTO ipblock 
+	(addr,status,first_seen,last_seen)
+	SELECT ?, ?, ?, ?
+	WHERE NOT EXISTS (
+		SELECT 1 FROM ipblock WHERE addr=?)");
 	
-	# Now walk our list
-	foreach my $address ( keys %$ips ){
-	    my $attrs = $ips->{$address};
-	    # Convert address to decimal format
-	    my $dec_addr = $class->ip2int($address);
-	    
-	    eval {
-		$sth2->execute($dec_addr, $attrs->{prefix}, $attrs->{version},
-			       $attrs->{status}, $attrs->{timestamp}, $attrs->{timestamp},
-		    );
-	    };
-	    if ( my $e = $@ ){
-		# Probably duplicate. Try to update.
-		eval {
-		    $sth1->execute($attrs->{timestamp}, $dec_addr);
-		};
-		if ( my $e2 = $@ ){
-		    $logger->error($e2);
-		}
-	    }
+    # Now walk our list
+    foreach my $address ( keys %$ips ){
+	my $attrs = $ips->{$address};
+	my $addr = "$address/$attrs->{prefix}";
+
+	eval {
+	    $dbh->begin_work;
+	    $sth1->execute($attrs->{timestamp}, $addr);
+	    $sth2->execute($addr,
+			   $attrs->{status},
+			   $attrs->{timestamp},
+			   $attrs->{timestamp},
+			   $addr);
+	    $dbh->commit;
+	};
+	if (my $e = $@) {
+	    $logger->error($e);
 	}
     }
     
@@ -1695,7 +1686,7 @@ sub num_addr {
     }elsif ( $addr->version == 6 ) {
 	# Notice that the first (subnet-router anycast) and last address 
 	# are valid in IPv6
-        return $class->numhosts_v6($addr->prefix);
+        return $class->numhosts_v6($addr->masklen);
     }
 }
 
@@ -2647,6 +2638,7 @@ sub get_next_free {
 
     while ($addr != $limit) {
 	my $ip = $addr->ip;
+	$addr += $increment;
 	return $ip unless $used{$ip};
 	next if $used{$ip} ne 'Available';
 	my $existing = Ipblock->search(address => $ip)->first;
@@ -2780,13 +2772,13 @@ sub version {
   Returns:   
     0..32 for IPv4, 0..128 for IPv6 addresses
   Examples:
-    if ($addr->prefix == 32) { ... }
+    if ($ipb->prefix == 32) { ... }
 
 =cut
 
 sub prefix {
     my $self = shift;
-    $self->isa_object_method('version');
+    $self->isa_object_method('prefix');
     return $self->netaddr->masklen;
 }
 
@@ -2803,7 +2795,7 @@ sub prefix {
 
 sub address {
     my $self = shift;
-    $self->isa_object_method('version');
+    $self->isa_object_method('address');
     return $self->netaddr->ip;
 }
 
