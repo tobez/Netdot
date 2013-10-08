@@ -982,37 +982,24 @@ sub get_maxed_out_subnets {
     my $threshold = Netdot->config->get('SUBNET_USAGE_MINPERCENT') 
 	|| $self->throw_user("Ipblock::get_maxed_out_subnets: SUBNET_USAGE_MINPERCENT is not defined in config");
 
-    my @result;
-    my $query = "SELECT     subnet.id, subnet.version, subnet.prefix
-                 FROM       ipblockstatus, ipblock subnet
-                 WHERE      subnet.status=ipblockstatus.id 
-                    AND     ipblockstatus.name='Subnet'
-                 ";
-    
-    if ( $args{version} ){
-	$query .= " AND subnet.version=$args{version}";
+    my (@phrases, @values);
+    push @phrases, "status in (
+	select id from ipblockstatus where name = 'Subnet')";
+    if ($args{version}) {
+	push @phrases, "family(addr) = ?";
+	push @values, $args{version};
     }
+    # Ignore point-to-point subnets XXX but what about IPv6 point-to-point?
+    push @phrases, "not (family(addr) = 4 and masklen(addr) >= 30)";
+    my @subnets = $self->retrieve_from_sql(
+	join(" AND ", @phrases) . " order by addr",
+	@values);
 
-    $query .= " ORDER BY   subnet.address";
-
-    my $dbh  = $self->db_Main();
-    my $rows = $dbh->selectall_arrayref($query);
-    foreach my $row ( @$rows ){
-	my ($id, $version, $prefix) = @$row;
-	if ( $version == 4 && $prefix >= 30 ){
-	    # Ignore point-to-point subnets
-	    next;
-	}
-	my $subnet = Ipblock->retrieve($id);
-	my ($total, $used);
-	if ( $version == 6 ){
-	    $total = new Math::BigInt($subnet->num_addr());
-	    $used  = new Math::BigInt($subnet->num_children());
-	}else{ 
-	    $total = $subnet->num_addr();
-	    $used  = $subnet->num_children();
-	}
-	my $free  = $total - $used;
+    my @result;
+    for my $subnet (@subnets) {
+	my $total        = $subnet->num_addr;
+	my $used         = $subnet->num_children;
+	my $free         = $total - $used;
 	my $percent_free = ($free*100/$total);
 	
 	if ( $percent_free <= $threshold ){
@@ -1066,7 +1053,6 @@ sub add_range{
     my @newips;
     my %args = (
 	status         => $argv{status},
-	parent         => $self->id,
 	validate       => 0, # Make it faster
 	no_update_tree => 1, # not necessary because we're passing parent id
 	);
@@ -1076,8 +1062,7 @@ sub add_range{
     # passing by reference causes it to be modified by insert/update
     # and that breaks the next cycle
     for ( my($ip) = $ipstart->copy; $ip <= $ipend; $ip++ ){
-	my $decimal = $ip->numeric; # We need the scalar value
-	if ( my $ipb = Ipblock->search(address=>$decimal, prefix=>$prefix)->first ){
+	if ( my $ipb = Ipblock->search(address=>$ip->ip, prefix=>$prefix)->first ){
 	    my %uargs = %args;
 	    $ipb->update(\%uargs);
 	    push @newips, $ipb;
@@ -1705,14 +1690,11 @@ sub num_addr {
 sub num_children {
     my ($self) = @_;
     $self->isa_object_method('num_children');
+
     my $dbh = $self->db_Main;
-    my $sth;
-    eval {
-	$sth = $dbh->prepare("SELECT COUNT(id) FROM ipblock WHERE parent=?");
-	$sth->execute($self->id);
-    };
-    $self->throw_fatal("$@") if $@;
-    my $num= $sth->fetchrow_array() || 0;
+    my ($num) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
+				      WHERE ipblock_parent(id)=?", {},
+				      $self->id);
     return $num;
 }
 

@@ -10,6 +10,13 @@ BEGIN { use_ok('Netdot::Model::Ipblock'); }
 test_helpers::disable_logging();
 test_helpers::settable_config();
 
+Ipblock->config->set("SUBNET_USAGE_MINPERCENT", undef);
+like(exception {
+     my $x = Ipblock->get_maxed_out_subnets;
+}, qr/is not defined in config/, 'bad config for get_maxed_out_subnets');
+
+Ipblock->config->set("SUBNET_USAGE_MINPERCENT", 5);
+
 for my $reserved (0, 5) {
 # incorrect indentation kept here because it makes more sense
 
@@ -275,6 +282,81 @@ my $subnet2 = Ipblock->insert({
     status  => 'Subnet',
 });
 is(($subnet2->get_dot_arpa_names)[0], '160-27.2.0.192.in-addr.arpa', 'get_dot_arpa_names_v4_27');
+
+is(scalar Ipblock->get_maxed_out_subnets(), 0, "get_maxed_out_subnets(): nothing");
+is(scalar Ipblock->get_maxed_out_subnets(version => 6), 0, "get_maxed_out_subnets(6): nothing");
+is(scalar Ipblock->get_maxed_out_subnets(version => 4), 0, "get_maxed_out_subnets(4): nothing");
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.0.2.190",
+	end    => "192.0.2.180",
+	status => "Discovered");
+}, qr/Invalid range/, 'bad add_range 1');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.168.2.180",
+	end    => "192.168.2.190",
+	status => "Discovered");
+}, qr/not within this subnet/, 'bad add_range 2');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.168.2.180",
+	end    => "192.168.2.190");
+}, qr/required argument: status/, 'bad add_range 3');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "not an ip",
+	end    => "192.0.2.180",
+	status => "Discovered");
+}, qr/Invalid range/, 'bad add_range 4');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.0.2.190",
+	end    => "not an ip",
+	status => "Discovered");
+}, qr/Invalid range/, 'bad add_range 5');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.0.2.180",
+	end    => "192.168.2.190",
+	status => "Discovered");
+}, qr/not within this subnet/, 'bad add_range 6');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "191.0.2.180",
+	end    => "192.0.2.190",
+	status => "Discovered");
+}, qr/not within this subnet/, 'bad add_range 7');
+
+my $added = $subnet2->add_range(
+    start  => "192.0.2." . (160 + $reserved + 1),
+    end    => "192.0.2.180",
+    status => "Discovered");
+is(scalar @$added, 20-$reserved, "add_range 1: added expected number of IPs");
+is($added->[0]->address, "192.0.2." . (160 + $reserved + 1), "add_range 1: first added is fine");
+is($added->[-1]->address, "192.0.2.180", "add_range 1: last added is fine");
+
+$added = $subnet2->add_range(
+    start  => "192.0.2.180",
+    end    => "192.0.2.190",
+    status => "Discovered");
+is(scalar @$added, 11, "add_range 2: added expected number of IPs");
+is($added->[0]->address, "192.0.2.180", "add_range 2: first added is fine");
+is($added->[1]->address, "192.0.2.181", "add_range 2: second added is fine");
+is($added->[-1]->address, "192.0.2.190", "add_range 2: last added is fine");
+
+my @maxed = Ipblock->get_maxed_out_subnets;
+is(scalar @maxed, 1, "get_maxed_out_subnets(): found just filled net");
+ok($maxed[0][1] < 5, "get_maxed_out_subnets(): free % is below the threshold");
+is($maxed[0][0]->address, "192.0.2.160", "get_maxed_out_subnets(): correct maxed out network");
+is($maxed[0][0]->prefix, 27, "get_maxed_out_subnets(): correct maxed out prefix");
 
 # my $subnet3 = Ipblock->insert({
 #     address => "169.254.100.0",
