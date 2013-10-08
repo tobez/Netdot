@@ -80,6 +80,22 @@ is($address->parent, $subnet, 'address.parent = subnet');
 is(scalar($subnet->children), 1 + $reserved, "subnet now has interesting children");
 is(($subnet->children)[$reserved], $address, "container.children.last = address");
 
+my $desc = $container->get_descendants;
+is(scalar @$desc, 2+$reserved, "container.get_descendants: correct count");
+is($desc->[0], $subnet, "container.get_descendants: includes subnet");
+is($desc->[-1], $address, "container.get_descendants: includes address");
+
+$desc = $subnet->get_descendants;
+is(scalar @$desc, 1+$reserved, "subnet.get_descendants: correct count");
+is($desc->[-1], $address, "subnet.get_descendants: includes address");
+
+$desc = $container->get_descendants(no_addresses => 1);
+is(scalar @$desc, 1, "container.get_descendants(no addresses): correct count");
+is($desc->[0], $subnet, "container.get_descendants(no addresses): includes subnet");
+
+$desc = $subnet->get_descendants(no_addresses => 1);
+is(scalar @$desc, 0, "subnet.get_descendants(no addresses): correct count of zero");
+
 is($address->address, '192.0.2.10', 'address method');
 is($address->address_numeric, '3221225994', 'address_numeric method');
 is($address->prefix, 32, 'prefix method');
@@ -358,6 +374,49 @@ ok($maxed[0][1] < 5, "get_maxed_out_subnets(): free % is below the threshold");
 is($maxed[0][0]->address, "192.0.2.160", "get_maxed_out_subnets(): correct maxed out network");
 is($maxed[0][0]->prefix, 27, "get_maxed_out_subnets(): correct maxed out prefix");
 
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "192.0.2.190",
+	end    => "192.0.2.180");
+}, qr/Invalid range/, 'bad remove_range 1');
+
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "not an ip",
+	end    => "192.0.2.180");
+}, qr/Invalid range/, 'bad remove_range 2');
+
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "192.0.2.190",
+	end    => "not an ip");
+}, qr/Invalid range/, 'bad remove_range 3');
+
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "192.168.2.180",
+	end    => "192.168.2.190");
+}, qr/not within this subnet/, 'bad remove_range 4');
+
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "192.0.2.180",
+	end    => "192.168.2.190");
+}, qr/not within this subnet/, 'bad remove_range 5');
+
+like(exception {
+     my $x = $subnet2->remove_range(
+	start  => "191.0.2.180",
+	end    => "192.0.2.190");
+}, qr/not within this subnet/, 'bad remove_range 6');
+
+ok($subnet2->remove_range(
+    start  => "192.0.2.180",
+    end    => "192.0.2.190"),
+    "remove_range: removed");
+
+is(scalar Ipblock->get_maxed_out_subnets(), 0, "get_maxed_out_subnets(): nothing after remove_range");
+
 # my $subnet3 = Ipblock->insert({
 #     address => "169.254.100.0",
 #     prefix  => '23',
@@ -479,7 +538,18 @@ is(Ipblock->matches_ip(), 0, 'matches_ip: nothing does not match');
 
 my $ar1 = Ipblock->matches_cidr($address->cidr);
 my $ar2 = ($address->address, $address->prefix);
-is_deeply(\$ar1, \$ar2, 'matches_cidr_1');
+is_deeply(\$ar1, \$ar2, 'matches_cidr: v4');
+is(Ipblock->matches_cidr("no slash"), 0, "!matches_cidr: no slash");
+is(Ipblock->matches_cidr("384.384.384.0/24"), 0, "!matches_cidr: bad IPv4 address");
+is(Ipblock->matches_cidr("10.10.10.10/33"), 0, "!matches_cidr: bad IPv4 prefix");
+ok(Ipblock->matches_cidr("2001:2010::/32"), "matches_cidr: v6 large");
+ok(Ipblock->matches_cidr("2001:2010::1/128"), "matches_cidr: v6");
+is(Ipblock->matches_cidr("2001:2010::z/128"), 0, "!matches_cidr: bad IPv6 address");
+is(Ipblock->matches_cidr("2001:2010::1/129"), 0, "!matches_cidr: bad IPv6 prefix");
+is(Ipblock->matches_cidr("10.10.10.10/666"), 0, "!matches_cidr: totally bad prefix");
+
+is(  $address->full_address, "192.0.2.10", "full_address: IPv4");
+is($v6address->full_address, "2001:2010:0000:0000:0000:0000:0000:0010", "full_address: IPv6");
 
 my @roots;
 @roots = Ipblock->get_roots();

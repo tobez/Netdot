@@ -1124,8 +1124,7 @@ sub remove_range{
     }
     my $prefix  = ($self->version == 4)? 32 : 128;
     for ( my($ip) = $ipstart->copy; $ip <= $ipend; $ip++ ){
-	my $decimal = $ip->numeric;
-	my $ipb = Ipblock->search(address=>$decimal, prefix=>$prefix)->first;
+	my $ipb = Ipblock->search(address=>$ip->ip, prefix=>$prefix)->first;
 	$ipb->delete() if $ipb;
 	# See add_range() about this next line
 	last if $ip == $ipstart->broadcast;
@@ -1152,8 +1151,15 @@ sub matches_cidr {
 
     if ( $string =~ /^(.+)\/(\d+)$/ ){
 	my ($addr, $prefix) = ($1, $2);
-	if ( $class->matches_ip($addr) ){
-	    return ($addr, $prefix);
+	return 0 if $prefix > 128;
+	if ($prefix > 32) {
+	    if ( $class->matches_v6($addr) ){
+		return ($addr, $prefix);
+	    }
+	} else {
+	    if ( $class->matches_ip($addr) ){
+		return ($addr, $prefix);
+	    }
 	}
     }
     return 0;
@@ -1565,10 +1571,6 @@ sub delete {
 
     if ( $args{recursive} ){
 	foreach my $ch ( $self->children ){
-	    if ( $ch->id == $self->id ){
-		$logger->warn("Ipblock::delete: ".$self->get_label()." is parent of itself!. Removing parent.");
-		$self->update({parent=>undef});
-	    }
 	    $ch->delete(recursive=>1);
 	}
     }    
