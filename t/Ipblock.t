@@ -105,6 +105,9 @@ is($subnet->num_addr(), '126', 'num_addr');
 is($subnet->address_usage(), 1 + $reserved, 'address_usage');
 
 is($container->subnet_usage(), '128', 'subnet_usage');
+like(exception { $subnet->subnet_usage() },
+     qr/only for Container blocks/,
+     'subnet_usage on a non-container');
 
 is($address->get_label(), '192.0.2.10', 'address label');
 is($subnet->get_label(), '192.0.2.0/25', 'subnet label');
@@ -303,6 +306,20 @@ is(scalar Ipblock->get_maxed_out_subnets(), 0, "get_maxed_out_subnets(): nothing
 is(scalar Ipblock->get_maxed_out_subnets(version => 6), 0, "get_maxed_out_subnets(6): nothing");
 is(scalar Ipblock->get_maxed_out_subnets(version => 4), 0, "get_maxed_out_subnets(4): nothing");
 
+my @fs = $subnet2->free_space;
+if ($reserved) {
+    is(scalar @fs, 4, "free_space: correct count");
+    is("$fs[0]", "192.0.2.160/32", "free_space: correct first space");
+    is("$fs[-1]", "192.0.2.176/28", "free_space: correct last space");
+} else {
+    is(scalar @fs, 1, "free_space: correct count");
+    is("$fs[0]", "192.0.2.160/27", "free_space: correct first");
+}
+@fs = $subnet2->free_space(32);
+is(scalar @fs, 32-$reserved, "free_space(32): correct count");
+is("$fs[0]", "192.0.2.160/32", "free_space(32): correct first space");
+is("$fs[-1]", "192.0.2.191/32", "free_space(32): correct last space");
+
 like(exception {
      my $x = $subnet2->add_range(
 	start  => "192.0.2.190",
@@ -459,6 +476,7 @@ my $v6subnet = Ipblock->insert({
 });
 is($v6subnet->parent, $v6container, 'v6_parent');
 is($v6subnet->is_address, 0, '!v6 subnet.is_address');
+is($v6container->subnet_usage(), Math::BigInt->new(1) << (128-62), 'v6 subnet_usage');
 
 my @unused_v6 = Ipblock->get_unused_subnets(version => 6);
 if (!$reserved) {
@@ -588,6 +606,42 @@ is(Ipblock->objectify($address), $address, "objectify(\$ipblock)");
 is(Ipblock->objectify($address->id), $address, "objectify(ID)");
 is(Ipblock->objectify($address->address), $address, "objectify(address)");
 is(Ipblock->objectify("8.8.8.8"), undef, "objectify(non-existing address)");
+
+like(exception {
+     Ipblock->_prevalidate;
+}, qr/Missing required arguments: address/, 'bad _prevalidate 1');
+like(exception {
+     Ipblock->_prevalidate("384.384.384.384");
+}, qr/appears to be invalid/, 'bad _prevalidate 2');
+like(exception {
+     Ipblock->_prevalidate("not an ip not an ip");
+}, qr/appears to be invalid/, 'bad _prevalidate 2');
+like(exception {
+     Ipblock->_prevalidate("2001:2010::::::1");
+}, qr/appears to be invalid/, 'bad _prevalidate 3');
+like(exception {
+     Ipblock->_prevalidate("0.0.0.0");
+}, qr/The unspecified IP/, 'bad _prevalidate 4');
+like(exception {
+     Ipblock->_prevalidate("::");
+}, qr/The unspecified IP/, 'bad _prevalidate 5');
+like(exception {
+     Ipblock->_prevalidate("1.2.3.4", 33);
+}, qr/Invalid IP/, 'bad _prevalidate 6');
+like(exception {
+     Ipblock->_prevalidate("2001:2010::1", 555);
+}, qr/Invalid IP/, 'bad _prevalidate 7');
+like(exception {
+     Ipblock->_prevalidate("1.1.1.1", 24);
+}, qr/is not base address of block/, 'bad _prevalidate 8');
+like(exception {
+     Ipblock->_prevalidate("2001:2010::1", 48);
+}, qr/is not base address of block/, 'bad _prevalidate 9');
+
+is(Ipblock->validate("1.1.1.0-255", 24), 1, "validate 1");
+is(Ipblock->validate("1.1.1.0", 24), 1, "validate 2");
+is(Ipblock->validate("1.1.1.1", 24), 0, "validate 3");
+
 
 # Delete all records
 $container->delete(recursive=>1);

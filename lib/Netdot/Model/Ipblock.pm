@@ -1760,7 +1760,7 @@ sub free_space {
     my ($self, $divide) = @_;
     $self->isa_object_method('free_space');
     my $class = ref($self);
-    
+
     sub _find_first_one {
         my $num = shift;
         if ($num & 1 || $num == 0) { 
@@ -1810,11 +1810,11 @@ sub free_space {
     my $curr = $self->netaddr->numeric;
     my @freespace = ();
     foreach my $kid (sort { $a->numeric <=> $b->numeric } @kids) {
-        my $curr_nip = $class->netaddr(address=>$curr, version=>$self->version);
 	unless ( $kid->numeric >= $curr ){
 	    #$class->build_tree($self->version);
 	    next;
 	}
+        my $curr_nip = $class->netaddr(address=>$curr, version=>$self->version);
 	if ( !$kid->contains($curr_nip) ){
 	    foreach my $space (&_fill($class, $curr_nip, $kid, $divide, $self->version)) {
 		push @freespace, $space;
@@ -1854,26 +1854,29 @@ sub subnet_usage {
     my $dbh   = $self->db_Main;
     my $q;
     eval {
-	$q = $dbh->prepare_cached("SELECT family(ipblock.addr), 
-                                          masklen(ipblock.addr), ipblockstatus.name AS status
-		  	           FROM ipblock, ipblockstatus
-				   WHERE ipblock.status=ipblockstatus.id
-				   AND ? >>= addr");
-	$q->execute("".$self->netaddr);
+	# must not be a host, and must be "reserved" or "subnet" to count towards usage
+	$q = $dbh->prepare_cached("
+	    SELECT family(addr), masklen(addr)
+	    FROM ipblock, ipblockstatus
+	    WHERE
+		ipblock.status=ipblockstatus.id AND
+		? >>= addr AND
+		NOT (family(addr) = 4 AND masklen(addr) = 32) AND
+		NOT (family(addr) = 6 AND masklen(addr) = 128) AND
+		(ipblockstatus.name = 'Reserved' OR
+		 ipblockstatus.name = 'Subnet')
+	");
+	$q->execute($self->addr);
     };
     if ( my $e = $@ ){
 	$self->throw_fatal( $e );
     }
-    while ( my ($version, $prefix, $status) = $q->fetchrow_array() ) {
-	# must not be a host, and must be "reserved" or "subnet" to count towards usage
-        if( !(( $version == 4 && $prefix == 32 ) || ( $version == 6 && $prefix == 128 )) 
-	    && ($status eq 'Reserved' || $status eq 'Subnet') ) {
-            if ( $version == 4 ) {
-                $count += $class->numhosts($prefix);
-            } elsif ( $version == 6 ) {
-                $count += $class->numhosts_v6($prefix);
-            }
-        }
+    while ( my ($version, $prefix) = $q->fetchrow_array() ) {
+	if ( $version == 4 ) {
+	    $count += $class->numhosts($prefix);
+	} elsif ( $version == 6 ) {
+	    $count += $class->numhosts_v6($prefix);
+	}
     }
     return $count;
 }
