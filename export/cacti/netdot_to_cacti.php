@@ -53,6 +53,9 @@ array_shift($parms);
     case "--no-graphs":
       $no_graphs = TRUE;
       break;
+    case "--id":
+      $id = $value;
+      break;
     default:
       echo "ERROR: Invalid Argument: ($arg)\n\n";
       display_help();
@@ -89,8 +92,7 @@ if (!$result) {
   exit(1);
  }
 
-$q = $netdot_db->Execute("
-                SELECT     rr.name, zone.name, ipblock.address, site.name, p.name, p.sysobjectid, pt.name, 
+$query_str =  "SELECT     rr.name, zone.name, ipblock.address, site.name, p.name, p.sysobjectid, pt.name, 
                            d.id, d.snmp_managed, d.snmp_polling, d.community, d.snmp_version, 
                            d.snmp_authkey, d.snmp_authprotocol, d.snmp_privkey, d.snmp_privprotocol,
                            d.snmp_securityname, e.name, m.name 
@@ -105,8 +107,15 @@ $q = $netdot_db->Execute("
                   AND      a.product_id=p.id
                   AND      d.asset_id=a.id
                   AND      p.type=pt.id
-                ORDER BY   rr.name;
-");
+";
+
+if ( isset($id) ){
+  $query_str .= ' AND d.id = ' . $id;
+}
+
+$query_str .=  ' ORDER BY rr.name';
+
+$q = $netdot_db->Execute($query_str);
 
 if (!$q) {
   print "DB Error: ".$netdot_db->ErrorMsg();
@@ -423,15 +432,16 @@ foreach ($groups as $group => $hosts){
 /* ----------------------------------------------------------------------------------------------------- */
 /* Clean up stale groups and nodes in the tree */
 
-foreach($hostNodes as $oldNode){
-  debug("Deleting old tree node: $oldNode");
-  db_execute("DELETE FROM graph_tree_items WHERE id=$oldNode");
+if ( !isset($id) ){
+  foreach($hostNodes as $oldNode){
+    debug("Deleting old tree node: $oldNode");
+    db_execute("DELETE FROM graph_tree_items WHERE id=$oldNode");
+  }
+  foreach($headerNodes as $oldHeader){
+    debug("Deleting old tree header: $oldHeader");
+    db_execute("DELETE FROM graph_tree_items WHERE id=$oldHeader");
+  }
 }
-foreach($headerNodes as $oldHeader){
-  debug("Deleting old tree header: $oldHeader");
-  db_execute("DELETE FROM graph_tree_items WHERE id=$oldHeader");
-}
-
 
 /* ----------------------------------------------------------------------------------------------------- */
 // Subroutines
@@ -513,7 +523,6 @@ function create_ds_graphs($args) {
      $crit = implode(' OR ', $patts);
      $ignQuery .= " AND ($crit)";
 
-     debug('$ignQuery is: '.$ignQuery);
      $ignIndexes = db_fetch_assoc($ignQuery);
 
      // Make into an associative array for faster lookups
@@ -522,9 +531,6 @@ function create_ds_graphs($args) {
        $ignHash[$row["snmp_index"]] = TRUE;
      }
 
-     debug('$ignHash has: ');
-     debug(var_export($ignHash));
-     
      if (count($ignHash)){
        // Now exclude the indexes that matched the ignore patterns
        $temparr = array();
@@ -536,9 +542,6 @@ function create_ds_graphs($args) {
        $snmpIndexes = $temparr;
      }
    }
-
-   debug('$snmpIndexes has: '); 
-   debug(var_export($snmpIndexes));
    
    if (count($snmpIndexes)) {
     $graphsCreated = 0;
@@ -626,6 +629,7 @@ function display_help() {
   echo "usage: netdot_to_cacti.php [--no-graphs] [-d|--debug] [-h|-help]\n";
   echo "\n";
   echo "Optional:\n";
+  echo "    --id           Only include device with this netdot ID\n";
   echo "    --no-graphs    Do not add graphs, only update devices and tree\n";
   echo "    -d|--debug     Enable debugging output\n";
   echo "    -h|--help      Display help and exit\n";

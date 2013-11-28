@@ -1376,10 +1376,10 @@ sub is_address {
     my $self = shift;
     $self->isa_object_method('is_address');
 
-    my $addr = $self->netaddr;
+    return unless ($self->version && $self->prefix);
 
-    if ( ($addr->version == 4 && $addr->masklen == 32) 
-	 || ($addr->version == 6 && $addr->masklen == 128) ){
+    if ( ($self->version == 4 && $self->prefix == 32) 
+	 || ($self->version == 6 && $self->prefix == 128) ){
 	return 1; 
     }else{
 	return 0;
@@ -2188,6 +2188,31 @@ sub get_last_n_arp {
 
 ################################################################
 
+=head2 get_last_arp_mac - Get latest MAC using this IP from ARP
+
+  Arguments: 
+    None
+  Returns:   
+    PhysAddr object if successful
+  Examples:
+    my $mac = $ipb->get_last_arp_mac();
+
+=cut
+
+sub get_last_arp_mac {
+    my ($self) = @_;
+    $self->isa_object_method('get_last_arp_mac');
+    
+    if ( my $arp = $self->get_last_n_arp(1) ){
+        my $row = shift @$arp;
+	my ($iid, $macid, $tstamp) = @$row;
+	my $mac = PhysAddr->retrieve($macid);
+	return $mac if defined $mac;
+    }
+}
+
+################################################################
+
 =head2 shared_network_subnets
 
     Determine if this subnet shares a physical link with another
@@ -2968,8 +2993,8 @@ sub _validate {
     }
 
     if ( my $rir = $args->{rir} ){
-	my $re = $self->config->get('VALID_RIR_REGEX');
-	unless ( $rir =~ /$re/ ){
+	my $valid_rirs = $self->config->get('VALID_RIRS');
+	unless ( exists $valid_rirs->{$rir} ){
 	    $self->throw_user("Invalid RIR: $rir");
 	}
     }

@@ -432,11 +432,9 @@ sub assign_name {
 	unless $host;
 
     # An RR record might already exist
-    if ( defined $host && (my @rrs = RR->search(name=>$host)) ){
-	if ( scalar @rrs == 1 ){
-	    $logger->debug(sub{"Name $host exists in DB"});
-	    return $rrs[0];
-	}
+    if ( defined $host && (my $rr = RR->search(name=>$host)->first) ){
+	$logger->debug(sub{"Name $host exists in DB"});
+	return $rr;
     }
     # An RR matching $host does not exist, or the name exists in 
     # multiple zones
@@ -634,6 +632,51 @@ sub insert {
     }
 
     return $self;
+}
+
+############################################################################
+
+=head2 manual_add - Add a device manually
+
+    Sets enough information so it can be monitored:
+    - Creates an interface
+    - Assigns IP to that interface
+    - Sets neighbor relationship if possible
+    
+  Arguments:
+    host - Name or IP address. Either one will be resolved
+  Returns:
+    New Device object
+  Examples:
+    my $newdevice = Device->manual_add(host=>"myhost");
+
+=cut
+
+sub manual_add {
+    my ($class, %argv) = @_;
+    $class->isa_class_method('manual_add');
+
+    # host is required
+    if ( !exists($argv{host}) ){
+	$class->throw_fatal('Model::Device::manual_add: Missing required argument: host');
+    }
+    # We will try to get both the IP and the name
+    my ($ip, $name) = Netdot->dns->resolve_any($argv{host});
+    $name ||= $ip;
+    my $dev = Device->insert({name=>$name, monitored=>1, snmp_managed=>0, 
+			      canautoupdate=>0, auto_dns=>0});
+    my $ints = $dev->add_interfaces(1);
+    my $int = $ints->[0];
+    if ( $ip ){
+	my $ipb = Ipblock->search(address=>$ip)->first || Ipblock->insert({address=>$ip});
+	$ipb->update({status=>"Static", interface=>$int, monitored=>1});
+	$dev->update({snmp_target=>$ipb});
+	# Try to set the interface neighbor
+	my $mac = $ipb->get_last_arp_mac();
+	my $neighbor = $mac->find_edge_port if $mac;
+	$int->add_neighbor(id=>$neighbor, fixed=>1) if $neighbor;
+    }
+    return $dev;
 }
 
 ############################################################################
@@ -836,15 +879,12 @@ sub get_snmp_info {
 				next if ( exists $seen_inst{$mst_inst} );
 				next unless $vlan_status{$vid} eq 'operational';
 				next if ( exists $IGNOREDVLANS{$vid} );
-				my $comm = $sinfo->snmp_comm . '@' . $vid;
 				my $stp_p_info;
 				my $i_stp_info;
 				eval {
-				    my $vsinfo = $class->_get_snmp_session('host'        => $args{host},
-									   'communities' => [$comm],
-									   'version'     => $sinfo->snmp_ver,
-									   'sclass'      => $sinfo->class);
-
+				    my $vsinfo = $self->_get_cisco_snmp_context_session(sinfo => $sinfo,
+											 vlan  => $vid);
+				    
 				    return unless $vsinfo;
 				    
 				    $stp_p_info = $class->_exec_timeout( 
@@ -857,9 +897,7 @@ sub get_snmp_info {
 					sub{  return $self->_get_i_stp_info(sinfo=>$vsinfo) } );
 				};
 				if ( my $e = $@ ){
-				    $logger->error(sprintf("Could not get SNMP session for %s with ".
-							   "community %s",
-							   $args{host}, $comm));
+				    $logger->error("$args{host}: SNMP error for VLAN $vid: $e");
 				    next;
 				}
 				foreach my $method ( keys %$stp_p_info ){
@@ -886,13 +924,10 @@ sub get_snmp_info {
 			foreach my $vid ( keys %vlans ){
 			    next if ( exists $IGNOREDVLANS{$vid} );
 			    next unless $vlan_status{$vid} eq 'operational';
-			    my $comm = $sinfo->snmp_comm . '@' . $vid;
 			    eval {
-				my $vsinfo = $class->_get_snmp_session('host'        => $args{host},
-								       'communities' => [$comm],
-								       'version'     => $sinfo->snmp_ver,
-								       'sclass'      => $sinfo->class);
-
+				my $vsinfo = $self->_get_cisco_snmp_context_session(sinfo => $sinfo,
+										     vlan  => $vid);
+				
 				return unless $vsinfo;
 
 				my $stp_p_info = $class->_exec_timeout( 
@@ -914,8 +949,7 @@ sub get_snmp_info {
 				}
 			    };
 			    if ( my $e = $@ ){
-				$logger->error(sprintf("Could not get SNMP session for %s with community %s",
-						       $args{host}, $comm));
+				$logger->error("$args{host}: SNMP error for VLAN $vid: $e");
 				next;
 			    }
 			}
@@ -2944,18 +2978,46 @@ sub info_update {
     ##############################################################
     # Asset
     my %asset_args = (
-	serial_number => $info->{serial_number},
 	physaddr      => $self->_assign_base_mac($info) || undef,
 	reserved_for  => "", # needs to be cleared when device gets installed
 	);
+
+    # Make sure S/N contains something
+    if (defined $info->{serial_number} && $info->{serial_number} =~ /\S+/ ){
+	$asset_args{serial_number} = $info->{serial_number};
+    }
     
-    # This is an OR (notice the arrayref)
-    my @where;
-    push(@where, { serial_number => $asset_args{serial_number} }) 
+    # Search for an asset based on either serial number or base MAC
+    # If two different assets are found, we will have to pick one and
+    # delete the other, as this leads to errors
+    my $asset_sn = Asset->search(serial_number=>$asset_args{serial_number})->first
 	if $asset_args{serial_number};
-    push(@where, { physaddr => $asset_args{physaddr} }) 
+    my $asset_phy = Asset->search(physaddr=>$asset_args{physaddr})->first
 	if $asset_args{physaddr};
-    my $asset = Asset->search_where(\@where)->first if @where;
+    
+    my $asset;
+    if ( $asset_sn && $asset_phy ){
+	if ($asset_sn->id != $asset_phy->id ){
+	    # Not the same. We'll just choose the one
+	    # with the serial number
+	    # Reassign any devices or device_modules' assets
+	    foreach my $dev ( $asset_phy->devices ){
+		$dev->update({asset_id=>$asset_sn});
+	    }
+	    foreach my $mod ( $asset_phy->device_modules ){
+		$mod->update({asset_id=>$asset_sn});
+	    }
+	    $logger->debug(sub{ sprintf("%s: Deleting duplicate asset %s", 
+					$host, $asset_phy->get_label)});
+	    $asset_phy->delete();
+	}
+	$asset = $asset_sn;
+    }elsif ( $asset_sn ){
+	$asset = $asset_sn;
+    }elsif ( $asset_phy ){
+	$asset = $asset_phy;
+    }
+
     my $dev_product;
     if ( $asset ){
 	# Make sure that the data is complete with the latest info we got
@@ -3833,7 +3895,18 @@ sub _layer_active {
     return substr($layers,8-$layer, 1);
 }
 
-# ############################################################################
+#############################################################################
+sub _make_sinfo_object
+{
+    my ($self, $sclass, %sinfoargs) = @_;
+    if ( $sinfoargs{sqe} ) {
+	$sinfoargs{Session} = Netdot::FakeSNMPSession->new(%sinfoargs);
+	$logger->debug(sub{"Device::_make_sinfo_object: with SQE" });
+    }
+    return $sclass->new( %sinfoargs );
+}
+
+#############################################################################
 # _get_snmp_session - Establish a SNMP session.  Tries to reuse sessions.
 #    
 #   Arguments:
@@ -3858,21 +3931,11 @@ sub _layer_active {
 #   Examples:
 #    
 #     Instance call:
-#     my $session = $device->get_snmp_session();
+#     my $session = $device->_get_snmp_session();
 #
 #     Class call:
-#     my $session = Device->get_snmp_session(host=>$hostname, communities=>['public']);
+#     my $session = Device->_get_snmp_session(host=>$hostname, communities=>['public']);
 #
-
-sub _make_sinfo_object
-{
-    my ($self, $sclass, %sinfoargs) = @_;
-    if ($sinfoargs{sqe}) {
-	$sinfoargs{Session} = Netdot::FakeSNMPSession->new(%sinfoargs);
-	$logger->debug(sub{"Device::_make_sinfo_object: with SQE" });
-    }
-    return $sclass->new( %sinfoargs );
-}
 
 sub _get_snmp_session {
     my ($self, %argv) = @_;
@@ -3911,7 +3974,7 @@ sub _get_snmp_session {
 	}
 
 	# We might already have a SNMP::Info class
-	$sclass ||= $self->{_sclass};
+	$sclass ||= $self->{_sclass} if defined $self->{_sclass};
 	
 	# Fill out some arguments if not given explicitly
 	unless ( $argv{host} ){
@@ -3928,22 +3991,27 @@ sub _get_snmp_session {
 	$self->throw_fatal("Model::Device::_get_snmp_session: Missing required arguments: host")
 	    unless $argv{host};
     }
-
-    $sclass ||= 'SNMP::Info';
     
     # Set defaults
     my %sinfoargs = ( 
-	DestHost => $argv{host},
-	Version  => $argv{version} || $self->config->get('DEFAULT_SNMPVERSION'),
-	Timeout  => (defined $argv{timeout})? $argv{timeout} : $self->config->get('DEFAULT_SNMPTIMEOUT'),
-	Retries  => (defined $argv{retries}) ? $argv{retries} : $self->config->get('DEFAULT_SNMPRETRIES'),
-	AutoSpecify => 1,
-	Debug       => ( $logger->is_debug() )? 1 : 0,
-	BulkWalk    => (defined $argv{bulkwalk}) ? $argv{bulkwalk} :  $self->config->get('DEFAULT_SNMPBULK'),
+	DestHost      => $argv{host},
+	Version       => $argv{version} || $self->config->get('DEFAULT_SNMPVERSION'),
+	Timeout       => (defined $argv{timeout})? $argv{timeout} : $self->config->get('DEFAULT_SNMPTIMEOUT'),
+	Retries       => (defined $argv{retries}) ? $argv{retries} : $self->config->get('DEFAULT_SNMPRETRIES'),
+	Debug         => ( $logger->is_debug() )? 1 : 0,
+	BulkWalk      => (defined $argv{bulkwalk}) ? $argv{bulkwalk} :  $self->config->get('DEFAULT_SNMPBULK'),
 	BulkRepeaters => $self->config->get('DEFAULT_SNMPBULK_MAX_REPEATERS'),
 	MibDirs       => \@MIBDIRS,
 	sqe           => $argv{sqe},
 	);
+
+    if ( defined $sclass && $sclass ne 'SNMP::Info' ) {
+	$sinfoargs{AutoSpecify} = 0;
+    }else{
+	$sinfoargs{AutoSpecify} = 1;
+	$sclass = 'SNMP::Info';
+    }
+
 
     # Turn off bulkwalk if we're using Net-SNMP 5.2.3 or 5.3.1.
     if ( !$sinfoargs{sqe} && $sinfoargs{BulkWalk} == 1  && ($SNMP::VERSION eq '5.0203' || $SNMP::VERSION eq '5.0301') 
@@ -3981,6 +4049,7 @@ sub _get_snmp_session {
 	$sinfoargs{AuthPass}  = $argv{auth_pass}  if $argv{auth_pass};
 	$sinfoargs{PrivProto} = $argv{priv_proto} if $argv{priv_proto};
 	$sinfoargs{PrivPass}  = $argv{priv_pass}  if $argv{priv_pass};
+	$sinfoargs{Context}   = $argv{context}    if $argv{context};
 
 	$logger->debug(sub{ sprintf("Device::get_snmp_session: Trying SNMPv%d session with %s",
 				    $sinfoargs{Version}, $argv{host})});
@@ -4247,7 +4316,7 @@ sub _get_devs_from_file {
 # 
 # Arguments:  File path
 # Returns  :  Hashref with hostnames (or IP addresses) as key 
-#             and SNMP community as value
+#             and, optionally, SNMP community as value
 # 
 sub _get_hosts_from_file {
     my ($class, $file) = @_;
@@ -4265,16 +4334,20 @@ sub _get_hosts_from_file {
     while (<FILE>){
 	chomp($_);
 	next if ( /^#/ );
-	if ( /\w+\s+\w+/ ){
+	if ( /\S+\s+\S+/ ){
 	    my ($host, $comm) = split /\s+/, $_;
 	    $hosts{$host} = $comm;
+	}else{
+	    if ( /\S+/ ){ # allow for only host on line
+		$hosts{$_} = '';
+	    }
 	}
     }
+    close(FILE);
     
     $class->throw_user("Host list is empty!")
 	unless ( scalar keys %hosts );
     
-    close(FILE);
     return \%hosts;
 }
 
@@ -4982,6 +5055,67 @@ sub _validate_arp {
 }
 
 ############################################################################
+# _get_cisco_snmp_context_session
+# 
+# Use the session information to connect to the VLAN-based "context" 
+# that provides forwarding table and STP information for that VLAN
+# In SNMPv2, the context is specified by adding @vlan to the community
+# whereas in SNMPv3, the "Context" parameter is used as "vlan-$vlan"
+sub _get_cisco_snmp_context_session {
+    my ($self, %argv) = @_;
+    my $class = ref($self) || $self;
+
+    my $sinfo = $argv{sinfo};
+    my $vlan = $argv{vlan};
+
+    # Grab the existing SNMP session parameters
+    my $sargs = $sinfo->args();
+    my %args = ('host'        => $sargs->{DestHost},
+		'version'     => $sargs->{Version},
+		'retries'     => $sargs->{Retries},
+		'snmpbulk'    => $sargs->{BulkWalk},
+		'sclass'      => $sinfo->class,
+	);
+    
+    if ( $args{version} == 3 ){
+	$args{sec_name}   = $sargs->{SecName};
+	$args{sec_level}  = $sargs->{SecLevel};
+	$args{auth_proto} = $sargs->{AuthProto};
+	$args{auth_pass}  = $sargs->{AuthPass};
+	$args{priv_proto} = $sargs->{PrivProto};
+	$args{priv_pass}  = $sargs->{PrivPass};
+	$args{context}    = "vlan-$vlan";
+    }else{
+	$args{communities} = [$self->community . '@' . $vlan];
+    }
+    
+    return $class->_get_snmp_session(%args);
+}
+
+############################################################################
+# Get list of all active VLANS on this device
+sub _get_active_vlans {
+    my ($self, %argv) = @_;
+
+    my $sinfo = $argv{sinfo};
+    my %vlans;
+    map { $vlans{$_}++ } values %{$sinfo->i_vlan()};
+    my $v_state = $sinfo->v_state();
+    foreach my $vid ( keys %vlans ){
+	my $key = '1.'.$vid;
+	delete $vlans{$vid} unless ( exists $v_state->{$key} 
+				     && $v_state->{$key} eq 'operational' ); 
+    }
+    my @res;
+    foreach my $vlan ( sort { $a <=> $b } keys %vlans ){
+	next if ( exists $IGNOREDVLANS{$vlan} );
+	push @res, $vlan;
+    }
+    return @res;
+}
+
+
+############################################################################
 #_get_fwt_from_snmp - Fetch fowarding tables via SNMP
 #
 #     Performs some validation and abstracts snmp::info logic
@@ -5016,7 +5150,6 @@ sub _get_fwt_from_snmp {
 
     my $start   = time;
     my $sinfo   = $argv{session} || $self->_get_snmp_session();
-
     return unless $sinfo;
 
     my $sints   = $sinfo->interfaces();
@@ -5039,47 +5172,25 @@ sub _get_fwt_from_snmp {
 					  ); 
 			  });
     
-    # For certain Cisco switches you have to connect to each
-    # VLAN and get the forwarding table out of it.
-    # Notably the Catalyst 5k, 6k, and 3500 series
+    # On most Cisco switches you have to connect to each
+    # VLAN to get the forwarding table
     my $cisco_comm_indexing = $sinfo->cisco_comm_indexing();
     if ( $cisco_comm_indexing ){
         $logger->debug(sub{"$host supports Cisco community string indexing. Connecting to each VLAN" });
-	my $sclass = $sinfo->class();
-
-        # Get list of all active VLANS on this device
-	my %vlans;
-	foreach my $int ( $self->interfaces ){
-	    map { $vlans{$_->vlan->vid}++ } $int->vlans;
-	}
-	my $v_state = $sinfo->v_state();
-	foreach my $vid ( keys %vlans ){
-	    my $key = '1.'.$vid;
-	    delete $vlans{$vid} unless ( exists $v_state->{$key} 
-					 && $v_state->{$key} eq 'operational' ); 
-	}
-
-        foreach my $vlan ( sort { $a <=> $b } keys %vlans ){
+		
+        foreach my $vlan ( $self->_get_active_vlans(sinfo=>$sinfo) ){
 	    next if ( $argv{vlan} && $argv{vlan} ne $vlan );
-	    next if ( $vlan == 0 || $vlan == 1 );  # Ignore vlans 0 and 1
-	    my $target = (scalar($self->snmp_target))? $self->snmp_target->address : $host;
-	    my %args = ('host'        => $target,
-			'communities' => [$self->community . '@' . $vlan],
-			'version'     => $self->snmp_version,
-			'sclass'      => $sclass,
-		);
-	    
 	    my $vlan_sinfo;
 	    eval {
-		$vlan_sinfo = $class->_get_snmp_session(%args);
+		$vlan_sinfo = $self->_get_cisco_snmp_context_session(sinfo=>$sinfo, vlan=>$vlan);
 	    };
 	    if ( my $e = $@ ){ 
                 $logger->error("$host: SNMP error for VLAN $vlan: $e");
                 next;
             }
-
+	    
 	    return unless $vlan_sinfo;
-
+	    
             $class->_exec_timeout($host, sub{ return $self->_walk_fwt(sinfo   => $vlan_sinfo,
 								      sints   => $sints,
 								      devints => \%devints,
@@ -5642,7 +5753,6 @@ sub _assign_monitor_config_group{
     if ( $self->config->get('DEV_MONITOR_CONFIG') && 
 	 (!$self->monitor_config_group || $self->monitor_config_group eq "") ){
 	my $monitor_config_map = $self->config->get('DEV_MONITOR_CONFIG_GROUP_MAP') || {};
-	my $config_group;
 	if ( my $type = $info->{type} ){
 	    if ( exists $monitor_config_map->{$type} ){
 		return $monitor_config_map->{$type};
@@ -6140,6 +6250,10 @@ sub _update_interfaces {
 	# (could have been deleted if its interface was deleted)
 	next unless ( defined $obj );
 	next if ( ref($obj) =~ /deleted/i );
+
+	# Don't delete if interface was added manually, which means that
+	# the IP was probably manually added too.
+	next if ($obj->interface && $obj->interface->doc_status eq 'manual');
 
 	# Don't delete dynamic addresses, just unset the interface
 	if ( $obj->status && $obj->status->name eq 'Dynamic' ){
