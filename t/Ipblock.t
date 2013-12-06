@@ -718,9 +718,8 @@ my ($devint) = $dev->interfaces();
 $devint->update({auto_dns => 0});
 $address->update({interface => $devint});
 
-like(exception {
-     $address->update_a_records(hostname_ips => [], num_ips => 1);
-}, qr/configured for no auto DNS/, 'update_a_records: no auto DNS');
+is($address->update_a_records(hostname_ips => [], num_ips => 1), undef, "update_a_records: no auto DNS result");
+logged_like(qr/configured for no auto DNS/, 'update_a_records: no auto DNS log');
 
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
