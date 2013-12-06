@@ -3168,10 +3168,11 @@ sub get_ips {
     my ($self, %argv) = @_;
     $self->isa_object_method('get_ips');
     
-    $argv{sort_by} ||= "address";
+    $argv{sort_by} ||= "addr";
+    $argv{sort_by} = "addr" if $argv{sort_by} eq "address";
     
     my @ips;
-    if ( $argv{sort_by} eq "address" ){
+    if ( $argv{sort_by} eq "addr" ){
 	@ips = Ipblock->search_devipsbyaddr($self->id);
     }elsif ( $argv{sort_by} eq "interface" ){
 	@ips = Ipblock->search_devipsbyint($self->id);

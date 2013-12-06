@@ -10,7 +10,9 @@ BEGIN { use_ok('Netdot::Model::Ipblock'); }
 test_helpers::disable_logging();
 test_helpers::settable_config();
 
-Ipblock->config->set("SUBNET_USAGE_MINPERCENT", undef);
+Ipblock->config->set(SUBNET_USAGE_MINPERCENT => undef);
+Ipblock->config->set(DEVICE_IP_NAME_PLUGIN => "Netdot::Model::Plugins::DeviceIpNamesByInt");
+
 like(exception {
      my $x = Ipblock->get_maxed_out_subnets;
 }, qr/is not defined in config/, 'bad config for get_maxed_out_subnets');
@@ -101,7 +103,9 @@ is($address->address_numeric, '3221225994', 'address_numeric method');
 is($address->prefix, 32, 'prefix method');
 is($address->version, 4, 'version method');
 
-is($subnet->num_addr(), '126', 'num_addr');
+is($subnet->num_addr(), 126, 'num_addr subnet');
+is($address->num_addr(), 1, 'num_addr host');
+is($container->num_addr(), 256, 'num_addr container');
 is($subnet->address_usage(), 1 + $reserved, 'address_usage');
 
 is($container->subnet_usage(), '128', 'subnet_usage');
@@ -113,6 +117,7 @@ is($address->get_label(), '192.0.2.10', 'address label');
 is($subnet->get_label(), '192.0.2.0/25', 'subnet label');
 
 is(Ipblock->search(address=>'192.0.2.0', prefix=>'25')->first, $subnet, 'search address+prefix' );
+is(Ipblock->search(address=>'192.0.2.0', prefix=>'25', { order_by => 'addr' })->first, $subnet, 'search address+prefix with options' );
 is(Ipblock->search(address=>'192.0.2.0/25')->first, $subnet, 'search address/prefix' );
 is(Ipblock->search(addr=>'192.0.2.0/25')->first, $subnet, 'search addr in cidr form' );
 is(Ipblock->search(address=>'192.0.2.0/25', status => "Subnet")->first, $subnet, 'search with good status' );
@@ -121,7 +126,10 @@ like(exception { Ipblock->search(address=>'192.0.2.0/25', status => "Muha") }, q
 like(exception { Ipblock->search(address=>'muha') }, qr/does not match valid IP/, 'search bad address' );
 
 is(scalar(Ipblock->search_like(address=>'192.0')), 3 + $reserved, 'search_like' );
+is(scalar(Ipblock->search_like(address=>'192.0', { order_by => 'id' })), 3 + $reserved, 'search_like with opts' );
+is(scalar(Ipblock->search_like(address=>'192.0', { non => 'sensical' })), 3 + $reserved, 'search_like with opts 2' );
 is(scalar(Ipblock->search_like(address=>'192.0/32')), 1 + $reserved, 'search_like with host prefix' );
+ok(scalar(Ipblock->search_like(address=>'192')), 'search_like LIKE' );
 is((Ipblock->search_like(address=>'192.0/25'))[0], $subnet, 'search_like with subnet prefix' );
 
 $subnet->update({description=>'test subnet'});
@@ -168,6 +176,12 @@ like(exception {
 like(exception {
 	my $x = Ipblock->within(1, "block");
 }, qr/not a valid CIDR/, 'bad within 4');
+like(exception {
+	my $x = Ipblock->within("this is a bad IP", "127.0.0.0/8");
+}, qr/bad address/, 'bad within 5');
+like(exception {
+	my $x = Ipblock->within("127.0.0.1", "this is a bad/network");
+}, qr/bad block/, 'bad within 6');
 
 my $hosts = Ipblock->get_host_addrs( $subnet->address ."/". $subnet->prefix );
 is($hosts->[0], '192.0.2.1', 'get_host_addrs');
@@ -219,6 +233,13 @@ is(Ipblock->get_covering_block(address=>'192.0.2.8', prefix=>'32'), $subnet,
    'get_covering_block');
 is(Ipblock->get_covering_block(address=>'192.0.2.10', prefix=>'32'), $address,
    'get_covering_block - self'); # XXX not sure this is how get_covering_block() should behave
+like(exception {
+     my $x = Ipblock->get_covering_block();
+}, qr/issing required arguments/, 'bad get_covering_block 1');
+is(Ipblock->get_covering_block(address=>'192.0.2.8'), $subnet,
+   'get_covering_block no prefix');
+is(Ipblock->get_covering_block(address=>'not an address', prefix=>'not a prefix'), undef,
+   'get_covering_block invalid address');  # XXX why it does not die?
 
 
 is(Ipblock->numhosts(24), 256, 'numhosts');
@@ -228,6 +249,9 @@ is(Ipblock->numhosts(24), 256, 'numhosts');
     is(Ipblock->numhosts_v6(64), 18446744073709551616, 'numhosts_v6');
 }
 is(Ipblock->shorten(ipaddr=>'192.0.0.34',mask=>'16'), '0.34', 'shorten');
+is(Ipblock->shorten(ipaddr=>'192.0.0.34',mask=>'1'), '192.0.0.34', 'shorten <=7');
+is(Ipblock->shorten(ipaddr=>'192.0.0.34',mask=>'10'), '0.0.34', 'shorten <=15');
+is(Ipblock->shorten(ipaddr=>'192.0.0.34',mask=>'28'), '192.0.0.34', 'shorten >= 24');
 
 is(Ipblock->subnetmask(256), 24, 'subnetmask');
 
@@ -367,6 +391,13 @@ like(exception {
 	end    => "192.0.2.190",
 	status => "Discovered");
 }, qr/not within this subnet/, 'bad add_range 7');
+
+like(exception {
+     my $x = $subnet2->add_range(
+	start  => "192.0.2.180",
+	end    => "192.0.2.190",
+	status => "Dynamic");
+}, qr/Please enable DHCP/, 'bad add_range 8');
 
 my $added = $subnet2->add_range(
     start  => "192.0.2." . (160 + $reserved + 1),
@@ -577,6 +608,8 @@ ok(!scalar(grep {   $subnet   ->id eq $_->id } @roots), "get_roots(): v4 subnet 
 ok(!scalar(grep { $v6subnet   ->id eq $_->id } @roots), "get_roots(): v6 subnet is not there");
 ok(!scalar(grep {   $address  ->id eq $_->id } @roots), "get_roots(): v4 address is not there");
 ok(!scalar(grep { $v6address  ->id eq $_->id } @roots), "get_roots(): v6 address is not there");
+my $some_root = Ipblock->get_roots();
+ok($some_root, "get_roots() in a scalar context");
 
 @roots = Ipblock->get_roots(4);
 ok( scalar(grep {   $container->id eq $_->id } @roots), "get_roots(4): v4 container is there");
@@ -642,8 +675,58 @@ is(Ipblock->validate("1.1.1.0-255", 24), 1, "validate 1");
 is(Ipblock->validate("1.1.1.0", 24), 1, "validate 2");
 is(Ipblock->validate("1.1.1.1", 24), 0, "validate 3");
 
+my $container2 = Ipblock->insert({
+    address => "192.2.2.0",
+    prefix  => '24',
+    version => 4,
+    status  => 'Container',
+});
+ok($container2, "insert another container");
+like(exception {
+    $container2->update({address => "192.0.2.0"});
+}, qr/already exists in db/, "update to existing fails");
+$container2->update({address => "192.2.4.0"});
+is(Ipblock->search_like(address=>'192.2.4')->first, $container2, 'address update succesfull' );
+$container2->update({address => "192.2.2.0", prefix => 23});
+is(Ipblock->search(address=>'192.2.2.0', prefix => 23)->first, $container2, 'address+prefix update succesfull' );
+is(Ipblock->search(address=>'192.2.2.0', prefix => 24)->first, undef, 'no hanging results after update, 1' );
+is(Ipblock->search_like(address=>'192.2.4')->first, undef, 'no hanging results after update, 2' );
+$container2->update({status => 'Subnet'});
+is($container2->status->name, 'Subnet', 'change container into subnet');
+
+like(exception {
+     $address->update_a_records;
+}, qr/Missing required arguments/, 'update_a_records: no args');
+like(exception {
+     $address->update_a_records(num_ips => 1);
+}, qr/Missing required arguments/, 'update_a_records: missing args 1');
+like(exception {
+     $address->update_a_records(hostname_ips => []);
+}, qr/Missing required arguments/, 'update_a_records: missing args 2');
+like(exception {
+     $address->update_a_records(hostname_ips => [], num_ips => 1);
+}, qr/not associated with any Device/, 'update_a_records: no device association');
+
+# For properly testing update_a_records(), we need to work with Device and Zone
+use_ok('Netdot::Model::Device');
+#my $dd = Netdot->config->get('DEFAULT_DNSDOMAIN');
+my $ddn = (Zone->search(name=>"defaultdomain")->first)->name;
+my $dev = Device->insert({name=>'localhost'});
+isa_ok($dev, 'Netdot::Model::Device', 'insert');
+$dev->add_interfaces(1);
+my ($devint) = $dev->interfaces();
+$devint->update({auto_dns => 0});
+$address->update({interface => $devint});
+
+like(exception {
+     $address->update_a_records(hostname_ips => [], num_ips => 1);
+}, qr/configured for no auto DNS/, 'update_a_records: no auto DNS');
+
+$dev->delete;
+isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
 
 # Delete all records
+$container2->delete(recursive=>1);
 $container->delete(recursive=>1);
 $v6container->delete(recursive=>1);
 isa_ok($container, 'Class::DBI::Object::Has::Been::Deleted', 'delete');

@@ -504,14 +504,15 @@ sub within{
     unless ( $block =~ /\// ){
 	$class->throw_user("Ipblock::within: $block not a valid CIDR string")
     }
+
+    my $ip = NetAddr::IP->new($address);
+    $class->throw_user("Ipblock::within: bad address $address") unless $ip;
+
     my ($baddr, $bprefix) = split /\//, $block;
+    my $network = NetAddr::IP->new($baddr, $bprefix);
+    $class->throw_user("Ipblock::within: bad block $block") unless $network;
     
-    if ( (my $ip      = NetAddr::IP->new($address)) && 
-	 (my $network = NetAddr::IP->new($baddr, $bprefix)) 
-	){
-	return 1 if $ip->within($network);
-    }
-    
+    return 1 if $ip->within($network);
     return 0;
 }
 
@@ -1911,8 +1912,8 @@ sub update_a_records {
 
     unless ( $self->interface && $self->interface->device ){
 	# No reason to go further
-	$self->throw_fatal(sprintf('update_a_records: Address %s not associated with any Device'), 
-			   $self->address);
+	$self->throw_fatal(sprintf('update_a_records: Address %s not associated with any Device', 
+			   $self->address));
     } 
 
     unless ( $self->interface->auto_dns ){
@@ -2369,12 +2370,12 @@ sub get_dynamic_ranges {
     my $version   = $self->version;
     my $dbh = $self->db_Main;
     my $rows = $dbh->selectall_arrayref("
-                SELECT   ipblock.address 
+                SELECT   host(ipblock.addr)
                  FROM    ipblock,ipblockstatus
                 WHERE    ipblock.parent=$id 
                      AND ipblock.status=ipblockstatus.id
                      AND ipblockstatus.name='Dynamic'
-                ORDER BY ipblock.address
+                ORDER BY ipblock.addr
 	");
     my @ips = map { $_->[0] } @$rows;
 
@@ -2684,7 +2685,7 @@ sub get_addresses_by {
 	unless ( $self->status && $self->status->name eq 'Subnet' );
     
     $sort ||= 'Address';
-    my %sort2field = ('Address'     => 'ipblock.address',
+    my %sort2field = ('Address'     => 'ipblock.addr',
 		      'Name'        => 'rr.name',
 		      'Status'      => 'ipblockstatus.name',
 		      'Used by'     => 'entity.name',
@@ -3039,19 +3040,19 @@ sub _get_status_id {
 #   Ipblock->search_devipsbyaddr($dev)
 
 __PACKAGE__->set_sql(devipsbyaddr => qq{
-    SELECT device.id, interface.id, interface.name, interface.device, ipblock.id, ipblock.interface, ipblock.address
+    SELECT device.id, interface.id, interface.name, interface.device, ipblock.id, ipblock.interface, host(ipblock.addr)
 	FROM ipblock, interface, device
 	WHERE interface.id = ipblock.interface AND
 	device.id = interface.device AND
 	device.id = ?
-	ORDER BY ipblock.address
+	ORDER BY ipblock.addr
     });
 
 # usage:
 #   Ipblock->search_devipsbyint($dev)
 
 __PACKAGE__->set_sql(devipsbyint => qq{
-    SELECT device.id, interface.id, interface.name, interface.device, ipblock.id, ipblock.interface, ipblock.address
+    SELECT device.id, interface.id, interface.name, interface.device, ipblock.id, ipblock.interface, host(ipblock.addr)
 	FROM ipblock, interface, device
 	WHERE interface.id = ipblock.interface AND
 	device.id = interface.device AND
