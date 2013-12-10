@@ -675,13 +675,12 @@ is(Ipblock->validate("1.1.1.0-255", 24), 1, "validate 1");
 is(Ipblock->validate("1.1.1.0", 24), 1, "validate 2");
 is(Ipblock->validate("1.1.1.1", 24), 0, "validate 3");
 
-my $container2 = Ipblock->insert({
-    address => "192.2.2.0",
-    prefix  => '24',
-    version => 4,
-    status  => 'Container',
-});
-ok($container2, "insert another container");
+my $container2 = Ipblock->insert({ address => "192.2.2.0/24" });
+ok($container2, "insert container2");
+is($container2->is_address, 0, '!container2.is_address');
+is($container2->status->name, 'Container', 'container2 status');
+is($container2->parent, undef, "container2 does not have a parent");
+is(scalar($container2->children), 0, "container does not have children");
 like(exception {
     $container2->update({address => "192.0.2.0"});
 }, qr/already exists in db/, "update to existing fails");
@@ -693,6 +692,12 @@ is(Ipblock->search(address=>'192.2.2.0', prefix => 24)->first, undef, 'no hangin
 is(Ipblock->search_like(address=>'192.2.4')->first, undef, 'no hanging results after update, 2' );
 $container2->update({status => 'Subnet'});
 is($container2->status->name, 'Subnet', 'change container into subnet');
+my $address2 = Ipblock->insert({
+    address => "192.2.2.42",
+    prefix  => '32',
+    version => 4,					 
+    status  => 'Static',
+});
 
 like(exception {
      $address->update_a_records;
@@ -718,8 +723,27 @@ my ($devint) = $dev->interfaces();
 $devint->update({auto_dns => 0});
 $address->update({interface => $devint});
 
+my $devs = $container->get_devices;
+ok($devs, "container's children have devices");
+is(@$devs, 1, "container's children have one device");
+is($devs->[0], $dev, "container's children have the right device");
+
+$devs = $subnet->get_devices;
+ok($devs, "subnet's children have devices");
+is(@$devs, 1, "subnet's children have one device");
+is($devs->[0], $dev, "subnet's children have the right device");
+
 is($address->update_a_records(hostname_ips => [], num_ips => 1), undef, "update_a_records: no auto DNS result");
 logged_like(qr/configured for no auto DNS/, 'update_a_records: no auto DNS log');
+
+is(scalar $subnet->shared_network_subnets(), 0, "no shared subnets");
+$address2->update({interface => $devint});
+my @shared = $subnet->shared_network_subnets;
+is(scalar(@shared), 1, "now there are shared subnets");
+is($shared[0], $container2, "and it is the right one");
+@shared = $container2->shared_network_subnets;
+is(scalar(@shared), 1, "there are shared subnets if we ask the counterpart");
+is($shared[0], $subnet, "and it is the right one as well");
 
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
