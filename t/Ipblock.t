@@ -1,6 +1,7 @@
 use strict;
 use Test::More;
 use Test::Fatal;
+use List::Util 'shuffle';
 use lib "lib";
 use lib "t";
 use test_helpers;
@@ -250,6 +251,71 @@ is(Ipblock->get_covering_block(address=>'192.0.2.8'), $subnet,
 is(Ipblock->get_covering_block(address=>'not an address', prefix=>'not a prefix'), undef,
    'get_covering_block invalid address');  # XXX why it does not die?
 
+like(exception {
+    Ipblock->get_addresses_by;
+}, qr/Invalid class method call/i, 'get_addresses_by: fails as class method');
+like(exception {
+    $container->get_addresses_by;
+}, qr/for a non-subnet/i, 'get_addresses_by: fails for a non-subnet');
+like(exception {
+    $subnet->get_addresses_by("Girations");
+}, qr/invalid sort string/i, 'get_addresses_by: invalid sort string Girations');
+if ($reserved) {
+    my @kid = $subnet->children;
+    is(scalar(@kid), $reserved+1, "get_addresses_by: preparatory work");
+    my @desc   = qw(Angola Bermuda Canada Denmark Estonia France);
+    my @status = qw(Available Discovered Reserved Reserved Static Static);
+    my @entity = qw(Alcatel-Lucent Cisco D-Link Dell Microsoft Unknown);
+    my @s_desc   = shuffle @desc;
+    my @s_status = shuffle @status;
+    my @s_entity = shuffle @entity;
+
+    my @old_status;
+    for my $i (0..$reserved) {
+	$old_status[$i] = $kid[$i]->status->name;
+	my $ent = Entity->search(name=>$s_entity[$i])->first;
+	$kid[$i]->update({
+	    description => $s_desc[$i],
+	    used_by     => $ent->id,
+	    status      => $s_status[$i],
+	});
+    }
+
+    my @sorted = $subnet->get_addresses_by;
+    is(scalar(@sorted), scalar(@kid), "get_addresses_by(): right number of children");
+    for my $i (0..$reserved) {
+	is($sorted[$i]->addr, $kid[$i]->addr, "get_addresses_by(): correct kid $i");
+    }
+
+    @sorted = $subnet->get_addresses_by("Address");
+    is(scalar(@sorted), scalar(@kid), "get_addresses_by('Address'): right number of children");
+    for my $i (0..$reserved) {
+	is($sorted[$i]->addr, $kid[$i]->addr, "get_addresses_by('Address'): correct kid $i");
+    }
+
+    @sorted = $subnet->get_addresses_by("Description");
+    is(scalar(@sorted), scalar(@kid), "get_addresses_by('Description'): right number of children");
+    for my $i (0..$reserved) {
+	is($sorted[$i]->description, $desc[$i], "get_addresses_by('Description'): correct kid $i: $desc[$i]");
+    }
+
+    @sorted = $subnet->get_addresses_by("Used by");
+    is(scalar(@sorted), scalar(@kid), "get_addresses_by('Used by'): right number of children");
+    for my $i (0..$reserved) {
+	is($sorted[$i]->used_by->name, $entity[$i], "get_addresses_by('Used by'): correct kid $i: $entity[$i]");
+    }
+
+    @sorted = $subnet->get_addresses_by("Status");
+    is(scalar(@sorted), scalar(@kid), "get_addresses_by('Status'): right number of children");
+    for my $i (0..$reserved) {
+	is($sorted[$i]->status->name, $status[$i], "get_addresses_by('Status'): correct kid #$i: $status[$i]");
+    }
+
+    # restore statuses
+    for my $i (0..$reserved) {
+	$kid[$i]->update({ status => $old_status[$i] });
+    }
+}
 
 is(Ipblock->numhosts(24), 256, 'numhosts');
 
@@ -764,6 +830,7 @@ is($shared[0], $subnet, "and it is the right one as well");
 
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
+
 
 # Delete all records
 $container2->delete(recursive=>1);

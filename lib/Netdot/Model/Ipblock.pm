@@ -2657,11 +2657,11 @@ sub get_next_free {
 =head2 get_addresses_by - Different sorts for ipblock_list page
 
    Arguments: 
-     sort field (Address|Name|Status|Used By|Description|Last Seen)     
+     sort field (Address|Name|Status|Used by|Description|Last Seen)
   Returns:   
-    arrayref of arrayrefs
+    array of Ipblocks
   Examples:
-    my $rows = $subnet->get_addresses_by('Address')
+    my @rows = $subnet->get_addresses_by('Description')
 
 =cut
 
@@ -2688,19 +2688,16 @@ sub get_addresses_by {
     FROM      ipblockstatus, ipblock 
     LEFT JOIN (rraddr CROSS JOIN rr) ON (rraddr.ipblock=ipblock.id AND rraddr.rr=rr.id)
     LEFT JOIN entity ON (ipblock.used_by=entity.id)
-    WHERE     ipblock.parent=$id
+    WHERE     ipblock_parent(ipblock.id)=$id
       AND     ipblock.status=ipblockstatus.id ";
     if ( ($self->version == 6) && ($self->config->get('IPV6_HIDE_DISCOVERED')) ) {
        $query.=" AND     ipblockstatus.name != \"Discovered\" ";
     }
-    $query .= "GROUP BY ipblock.id 
-    ORDER BY  $sort2field{$sort}";
+    $query .= "ORDER BY  $sort2field{$sort}";
 
     my $dbh  = $self->db_Main();
     my $rows = $dbh->selectall_arrayref($query);
-    my @objects;
-    map { push @objects, Ipblock->retrieve($_->[0]) } @$rows;
-    return @objects;
+    return map { Ipblock->retrieve($_->[0]) } @$rows;
 }
 
 ##################################################################
