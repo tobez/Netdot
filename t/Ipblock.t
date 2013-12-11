@@ -79,8 +79,9 @@ is($container->parent, undef, "container does not and never will have a parent")
 is(scalar($container->children), 1, "container still has 1 kid");
 is($container->children->first, $subnet, "container.children.first = subnet");
 is($address->parent, $subnet, 'address.parent = subnet');
-is(scalar($subnet->children), 1 + $reserved, "subnet now has interesting children");
-is(($subnet->children)[$reserved], $address, "container.children.last = address");
+my @children = $subnet->children;
+is(scalar(@children), 1 + $reserved, "subnet now has interesting children");
+is($children[$reserved]->addr, $address->addr, "container.children.last = address");
 
 my $desc = $container->get_descendants;
 is(scalar @$desc, 2+$reserved, "container.get_descendants: correct count");
@@ -184,7 +185,15 @@ like(exception {
 }, qr/bad block/, 'bad within 6');
 
 my $hosts = Ipblock->get_host_addrs( $subnet->address ."/". $subnet->prefix );
-is($hosts->[0], '192.0.2.1', 'get_host_addrs');
+is($hosts->[0], '192.0.2.1', 'Ipblock->get_host_addrs(subnet)');
+$hosts = $subnet->get_host_addrs;
+is($hosts->[0], '192.0.2.1', 'subnet->get_host_addrs');
+like(exception {
+	Ipblock->get_host_addrs("this is a bad network");
+}, qr/Invalid subnet/i, 'Ipblock->get_host_addrs(bad network)');
+like(exception {
+	Ipblock->get_host_addrs("2001:2010::1");
+}, qr/only supports ipv4/i, 'Ipblock->get_host_addrs(ipv6)');
 
 ok( Ipblock->is_loopback('127.0.0.1'), 'is_loopback_v4');
 ok(!Ipblock->is_loopback('192.168.10.1'), '!is_loopback_v4');
@@ -465,16 +474,17 @@ ok($subnet2->remove_range(
 
 is(scalar Ipblock->get_maxed_out_subnets(), 0, "get_maxed_out_subnets(): nothing after remove_range");
 
-# my $subnet3 = Ipblock->insert({
-#     address => "169.254.100.0",
-#     prefix  => '23',
-#     version => 4,
-#     status  => 'Subnet',
-# });
-# my @arpa_names = ('100.254.169.in-addr.arpa', '101.254.169.in-addr.arpa');
-# my @a = $subnet3->get_dot_arpa_names();
-# is($a[0], $arpa_names[0], 'get_dot_arpa_names_v4_23');
-# is($a[1], $arpa_names[1], 'get_dot_arpa_names_v4_23');
+my $subnet3 = Ipblock->insert({
+    address => "169.254.100.0",
+    prefix  => '23',
+    version => 4,
+    status  => 'Subnet',
+});
+my @arpa_names = ('100.254.169.in-addr.arpa', '101.254.169.in-addr.arpa');
+my @a = $subnet3->get_dot_arpa_names();
+is($a[0], $arpa_names[0], 'get_dot_arpa_names_v4_23');
+is($a[1], $arpa_names[1], 'get_dot_arpa_names_v4_23');
+$subnet3->delete(recursive => 1);
 
 my $blk = Ipblock->insert({
     address => "8.0.0.0",
@@ -482,11 +492,18 @@ my $blk = Ipblock->insert({
     version => 4,
     status  => 'Container',
 });
-my @arpa_names = ('8.in-addr.arpa', '9.in-addr.arpa');
-my @a = $blk->get_dot_arpa_names();
+@arpa_names = ('8.in-addr.arpa', '9.in-addr.arpa');
+@a = $blk->get_dot_arpa_names();
 is($a[0], $arpa_names[0], 'get_dot_arpa_names_v4_7');
 is($a[1], $arpa_names[1], 'get_dot_arpa_names_v4_7');
-$blk->delete();
+$blk->delete(recursive => 1);
+
+$blk = Ipblock->insert({address => "8.0.0.0/15"});
+@arpa_names = ('0.8.in-addr.arpa', '1.8.in-addr.arpa');
+@a = $blk->get_dot_arpa_names();
+is($a[0], $arpa_names[0], 'get_dot_arpa_names_v4_15');
+is($a[1], $arpa_names[1], 'get_dot_arpa_names_v4_15');
+$blk->delete(recursive => 1);
 
 # Previously 2001:db8::/32 was used, but it is now present in the DB by default,
 # so we use a real /32 (allocated to TELIANETDK) for tests here.
