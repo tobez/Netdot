@@ -2573,6 +2573,7 @@ sub get_host_addrs {
 	$subnet = $self->cidr;
 	$nip = $self->netaddr;
     }else{
+	$class = $self;
 	$subnet = shift;
 	my ($address, $prefix) = split /\//, $subnet;
 	$nip = Ipblock->netaddr(address=>$address, prefix=>$prefix) or
@@ -2836,7 +2837,7 @@ sub children {
     my $self = shift;
     $self->isa_object_method('children');
 
-    my $phrase = "ipblock_parent(id) = ?";
+    my $phrase = "ipblock_parent(id) = ? order by addr";
     return ref($self)->retrieve_from_sql($phrase, $self->id);
 }
 
