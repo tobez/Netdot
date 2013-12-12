@@ -828,11 +828,61 @@ is($shared[0], $container2, "and it is the right one");
 is(scalar(@shared), 1, "there are shared subnets if we ask the counterpart");
 is($shared[0], $subnet, "and it is the right one as well");
 
+like(exception {
+     Ipblock->netaddr;
+}, qr/missing required argument/i, 'Ipblock->netaddr: missing required argument');
+like(exception {
+     Ipblock->netaddr(address => 2130706433);
+}, qr/integer argument requires ip version/i, 'Ipblock->netaddr: missing version');
+like(exception {
+     Ipblock->netaddr(address => 2130706433, version => 42);
+}, qr/invalid protocol version/i, 'Ipblock->netaddr: invalid version');
+is("".Ipblock->netaddr(address => 2130706433, prefix => 32, version => 4),
+   "127.0.0.1/32", "Ipblock->netaddr(v4integer)");
+is("".Ipblock->netaddr(
+    address => "42541138466733759842233324234044604416",
+    prefix => 64, version => 6)->short,
+   "2001:2010::", "Ipblock->netaddr(v6integer)");
+
+like(exception {
+    Ipblock->insert({
+	address => "192.2.2.0",
+	prefix  => '32',
+	version => 4,					 
+	status  => 'Static',
+    });
+}, qr/IP cannot have same address as its subnet/i, "insert IP with network address");
+like(exception {
+    $address2->update({ address => "192.2.2.0", });
+}, qr/IP cannot have same address as its subnet/i, "update IP with network address");
+like(exception {
+    Ipblock->insert({
+	address => "192.2.2.32",
+	prefix  => 29,
+	version => 4,					 
+	status  => 'Subnet',
+    });
+}, qr/block allocations only allowed under container blocks/i, "insert subnet into a subnet");
+like(exception {
+    $subnet2->update({ status => "Reserved"});
+}, qr/reserved blocks can't contain other blocks/i, "trying to convert a subnet with kids to a reserved block");
+
+my $reserved = Ipblock->insert({ address => "192.2.4.0/24", status => "Reserved" });
+is($reserved->status->name, "Reserved", "Create a reserved block");
+like(exception {
+    Ipblock->insert({
+	address => "192.2.4.29",
+	prefix  => '32',
+	version => 4,					 
+	status  => 'Static',
+    });
+}, qr/address allocations not allowed under reserved blocks/i, "insert address into a reserved block");
+
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
 
-
 # Delete all records
+$reserved->delete(recursive => 1);
 $container2->delete(recursive=>1);
 $container->delete(recursive=>1);
 $v6container->delete(recursive=>1);

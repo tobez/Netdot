@@ -604,8 +604,7 @@ sub insert {
 	    $newblock->_validate($argv);
 	};
 	if ( my $e = $@ ){
-print STDERR "validation failure $e\n";
-	    #$newblock->delete();
+	    $newblock->delete();
 	    $e->rethrow() if ref($e);
 	}
     }
@@ -1463,8 +1462,6 @@ sub update {
     # method is pretty low level
 
     my %bak    = $self->get_state();
-    $bak{address} = $self->address;
-    $bak{prefix}  = $self->prefix;
     my $result = $self->SUPER::update(\%state);
 
     # This makes sure we have the latest values
@@ -1487,7 +1484,7 @@ sub update {
 
     # Update DHCP scope if needed
     if ( $self->dhcp_scopes ){
-	if ( $self->address ne $bak{address} || $self->prefix ne $bak{prefix} ){
+	if ( $self->addr ne $bak{addr} ){
 	    my $scope = ($self->dhcp_scopes)[0];
 	    $scope->update({ipblock=>$self});
 	}
@@ -1499,7 +1496,7 @@ sub update {
     }
 
     # Update PTR records if needed
-    if ( $self->address ne $bak{address} ){
+    if ( $self->addr ne $bak{addr} ){
 	my $name = RRPTR->get_name(ipblock=>$self);
 	foreach my $pr ( $self->ptr_records ){
 	    my $rr = $pr->rr;
@@ -2736,6 +2733,8 @@ sub netaddr {
 		}elsif ( $argv{version} == 6 ){
 		    my $big = new Math::BigInt($addr);
 		    return NetAddr::IP->new6($big, $argv{prefix});
+		} else {
+		    $self->throw_fatal("Invalid protocol version: $argv{version}");
 		}
 	    }
 	}else{
