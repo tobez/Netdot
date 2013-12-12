@@ -877,6 +877,25 @@ like(exception {
 	status  => 'Static',
     });
 }, qr/address allocations not allowed under reserved blocks/i, "insert address into a reserved block");
+like(exception {
+    $reserved->update({ status => "Dynamic", });
+}, qr/only addresses can be set to dynamic/i, "trying to make a non-address Dynamic");
+like(exception {
+    $reserved->update({ status => "Static", });
+}, qr/only addresses can be set to static/i, "trying to make a non-address Static");
+like(exception {
+    $reserved->update({ status => "Available", });
+}, qr/only addresses can be set to Available/i, "trying to make a non-address Available");
+like(exception {
+    $reserved->update({ monitored => 1, });
+}, qr/monitored flag is only for addresses/i, "trying to make a non-address monitored");
+like(exception {
+    $reserved->update({ status => "FunnyStatus", });
+}, qr/status FunnyStatus not known/i, "trying to use an unknown status");
+like(exception {
+    Ipblock->_get_status_id;
+}, qr/missing required argument/i, "trying to get undefined status");
+is(Ipblock->_get_status_id(42), 42, "_get_status_id: and integer is just copied");
 
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');

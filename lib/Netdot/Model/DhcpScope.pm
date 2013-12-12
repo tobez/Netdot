@@ -842,7 +842,8 @@ sub _get_all_data {
     my $q = "SELECT          dhcpscope.id, dhcpscope.name, dhcpscope.active, dhcpscope.text, 
                              dhcpscopetype.name, dhcpscope.container,
                              dhcpattr.id, dhcpattrname.name, dhcpattr.value, dhcpattrname.code, dhcpattrname.format,
-                             physaddr.address, ipblock.address, ipblock.version, dhcpscope.duid, dhcpscope.version
+                             physaddr.address, host(ipblock.addr), family(ipblock.addr),
+                             dhcpscope.duid, dhcpscope.version
              FROM            dhcpscopetype, dhcpscope
              LEFT OUTER JOIN physaddr ON dhcpscope.physaddr=physaddr.id
              LEFT OUTER JOIN ipblock  ON dhcpscope.ipblock=ipblock.id
@@ -892,15 +893,14 @@ sub _get_all_data {
 	    }
 	    if ( $ip ){
 		if ( $ipversion == 6 ){
-		    my $addr = Ipblock->int2ip($ip, $ipversion);
 		    $data{$scope_id}{attrs}{'fixed-address6'}{name}  = 'fixed-address6';
-		    $data{$scope_id}{attrs}{'fixed-address6'}{value} = $addr;
-		    my $addr_full = NetAddr::IP->new6($addr)->full();
+		    $data{$scope_id}{attrs}{'fixed-address6'}{value} = $ip;
+		    my $addr_full = NetAddr::IP->new6($ip)->full();
 		    $addr_full =~ s/\:+/-/g;
 		    $data{$scope_id}{name} = $addr_full;
 		}else{
 		    $data{$scope_id}{attrs}{'fixed-address'}{name}  = 'fixed-address';
-		    $data{$scope_id}{attrs}{'fixed-address'}{value} = Ipblock->int2ip($ip, $ipversion);
+		    $data{$scope_id}{attrs}{'fixed-address'}{value} = $ip;
 		}
 	    }
 	}

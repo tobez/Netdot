@@ -45,17 +45,16 @@ sub retrieve_all {
 
     if ( $table eq 'Ipblock' ){
 	my $dbh = Netdot::Model->db_Main();
-	my $rows = $dbh->selectall_arrayref("SELECT   id,version,address,prefix 
+	my $rows = $dbh->selectall_arrayref("SELECT   id,family(addr),host(addr),masklen(addr)
                                              FROM     ipblock
-                                             WHERE    (version=4 AND prefix!=32)
-                                                OR    (version=6 AND prefix!=128) 
-                                             ORDER BY address");
+                                             WHERE    (family(addr)=4 AND masklen(addr)!=32)
+                                                OR    (family(addr)=6 AND masklen(addr)!=128) 
+                                             ORDER BY addr");
      
 	if ( my $n = scalar @$rows ){
             if( $n <= $MAX ){
 	        foreach my $row ( @$rows ){
-		    my ($id, $version, $intaddr, $prefix) = @$row;
-		    my $address = Ipblock->int2ip($intaddr, $version);
+		    my ($id, $version, $address, $prefix) = @$row;
 		    my $lbl = $address.'/'.$prefix;
 		    $response .= $id."=".$ui->url_encode($lbl)."&";
 	        }
