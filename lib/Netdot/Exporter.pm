@@ -83,15 +83,18 @@ sub get_device_info {
     my %device_info;
     $logger->debug("Netdot::Exporter::get_device_info: querying database");
     my $rows = $self->{_dbh}->selectall_arrayref("
-          SELECT    d.id, d.snmp_managed, d.community, d.snmp_target, 
+
+          SELECT    d.id, d.snmp_managed, d.community, d.snmp_target, d.host_device,
                     d.monitoring_template, d.down_from, d.down_until, entity.name, entity.aliases,
                     site.name, site.number, site.aliases, contactlist.id,
                     i.id, i.number, i.name, i.description, i.admin_status, i.monitored, i.contactlist,
                     ip.id, ip.address, ip.version, ip.parent, ip.monitored, rr.name, zone.name,
                     service.id, service.name, ipservice.monitored, ipservice.contactlist,
-                    bgppeering.bgppeeraddr, bgppeering.monitored, bgppeering.contactlist
+                    bgppeering.bgppeeraddr, bgppeering.contactlist, peer.asnumber, peer.asname
           FROM      rr, zone, device d
-          LEFT OUTER JOIN bgppeering ON d.id=bgppeering.device
+          LEFT OUTER JOIN (bgppeering, entity peer) ON d.id=bgppeering.device 
+                           AND bgppeering.entity=peer.id
+                           AND bgppeering.monitored=1
           LEFT OUTER JOIN devicecontacts ON d.id=devicecontacts.device
           LEFT OUTER JOIN contactlist ON contactlist.id=devicecontacts.contactlist
           LEFT OUTER JOIN entity ON d.used_by=entity.id
@@ -108,16 +111,18 @@ sub get_device_info {
     
     $logger->debug("Netdot::Exporter::get_device_info: building data structure");
     foreach my $row ( @$rows ){
-	my ($devid, $dev_snmp, $community, $target_id,
+
+	my ($devid, $dev_snmp, $community, $target_id, $host_device,
 	    $mon_template, $down_from, $down_until, $entity_name, $entity_alias, 
 	    $site_name, $site_number, $site_alias, $clid,
 	    $intid, $intnumber, $intname, $intdesc, $intadmin, $intmon, $intcl,
 	    $ip_id, $ip_addr, $ip_version, $subnet, $ip_mon, $name, $zone,
 	    $srv_id, $srv_name, $srv_mon, $srv_cl,
-	    $peeraddr, $peermon, $peercl) = @$row;
+	    $peer_addr, $peer_cl, $peer_asn, $peer_asname) = @$row;
 	my $hostname = ($name eq '@')? $zone : $name.'.'.$zone;
 	$device_info{$devid}{target_id}    = $target_id;
 	$device_info{$devid}{hostname}     = $hostname;
+	$device_info{$devid}{host_device}  = $host_device;
 	$device_info{$devid}{community}    = $community;
 	$device_info{$devid}{snmp_managed} = $dev_snmp;
 	$device_info{$devid}{mon_template} = $mon_template;
@@ -129,8 +134,11 @@ sub get_device_info {
 	$device_info{$devid}{site_number}  = $site_number  if defined $site_number;
 	$device_info{$devid}{site_alias}   = $site_alias   if defined $site_alias;
 	$device_info{$devid}{contactlist}{$clid} = 1 if defined $clid;
-	$device_info{$devid}{peering}{$peeraddr}{monitored}   = $peermon if defined $peeraddr;
-	$device_info{$devid}{peering}{$peeraddr}{contactlist} = $peercl  if defined $peeraddr;
+	if ( $peer_addr ){
+	    $device_info{$devid}{peering}{$peer_addr}{contactlist} = $peer_cl;
+	    $device_info{$devid}{peering}{$peer_addr}{asn}         = $peer_asn    if $peer_asn;
+	    $device_info{$devid}{peering}{$peer_addr}{asname}      = $peer_asname if $peer_asname;
+	}
 	$device_info{$devid}{interface}{$intid}{number}       = $intnumber;
 	$device_info{$devid}{interface}{$intid}{name}         = $intname;
 	$device_info{$devid}{interface}{$intid}{description}  = $intdesc;

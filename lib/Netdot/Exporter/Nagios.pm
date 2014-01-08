@@ -182,7 +182,7 @@ sub generate_configs {
 	my $devh = $device_info->{$devid};
 	next unless $devh->{target_addr} && $devh->{target_version};
 	my $ip = Ipblock->int2ip($devh->{target_addr}, $devh->{target_version});
-
+	my $target_ip = $ip;
 	$hosts{$ip}{ip} = $ip;
 
 	# This is the device name in Netdot. 
@@ -246,22 +246,31 @@ sub generate_configs {
 
 	# Host Parents
 	my @parent_names;
-	foreach my $d ( $self->get_monitored_ancestors($devid, $device_parents) ){
-	    my $name = $self->strip_domain($device_info->{$d}->{hostname});
-	    push @parent_names, $name;
+	if ( (my @ancestors = $self->get_monitored_ancestors($devid, $device_parents)) ){
+	    foreach my $d ( @ancestors ){
+		push @parent_names, $self->strip_domain($device_info->{$d}->{hostname});
+	    }
+	}elsif ( (my $hd = $devh->{host_device}) ){
+	    push @parent_names, $self->strip_domain($device_info->{$hd}->{hostname});
 	}
+
 	
 	# Services monitored via SNMP on the target IP
 	if ( $devh->{snmp_managed} ){
 	    
 	    # Add a bgppeer service check for each monitored BGP peering
-	    foreach my $peeraddr ( keys %{$devh->{peering}} ){
-		my $peering = $devh->{peering}->{$peeraddr};
-		next unless ( $peering->{monitored} );
-		my $srvname = "BGPPEER_".$peeraddr;
+	    foreach my $peer_addr ( keys %{$devh->{peering}} ){
+		my $peering = $devh->{peering}->{$peer_addr};
+		my $srvname = 'BGPPEER_'.$peer_addr;
+		$srvname .= '_'. $peering->{asname} if $peering->{asname};
+		$srvname = $self->_rem_illegal_chars($srvname);
+		my $displayname = $peer_addr;
+		$displayname .= ' '. $peering->{asname}  if $peering->{asname};
+		$displayname .= ' ('.$peering->{asn}.')' if $peering->{asn};
+		$hosts{$ip}{service}{$srvname}{displayname}  = $displayname;
 		$hosts{$ip}{service}{$srvname}{type}         = 'BGPPEER';
 		$hosts{$ip}{service}{$srvname}{hostname}     = $hosts{$ip}{name};
-		$hosts{$ip}{service}{$srvname}{peeraddr}     = $peeraddr;
+		$hosts{$ip}{service}{$srvname}{peer_addr}    = $peer_addr;
 		$hosts{$ip}{service}{$srvname}{srvname}      = $srvname;
 		$hosts{$ip}{service}{$srvname}{community}    = $devh->{community};
 		my @peercls;
@@ -346,11 +355,19 @@ sub generate_configs {
 		next unless $iph->{addr} && $iph->{version};
 		my $ip = Ipblock->int2ip($iph->{addr}, $iph->{version});
 
-		unless ( $devh->{target_id} == $ip_id ){
+		if ( $devh->{target_id} == $ip_id ){
+		    # This is the target IP
+		    if ( @parent_names && defined $parent_names[0] ){
+			$hosts{$ip}{parents} = join ',', @parent_names;    
+		    }
+		}else{
 		    # IP is not target IP. We only care about it if it's marked as monitored
 		    next unless $iph->{monitored};
 		    $hosts{$ip}{ip} = $ip;
 
+		    # Parent is the host with the target IP
+		    $hosts{$ip}{parents} = $hosts{$target_ip}{name};
+		    
 		    # Figure out a unique name for this IP
 		    if ( my $name = Netdot->dns->resolve_ip($ip) ){
 			$hosts{$ip}{alias} = $name; # fqdn
@@ -368,10 +385,6 @@ sub generate_configs {
 		$hosts{$ip}{group} = $group_name;
 		push @{ $groups{$group_name}{members} }, $hosts{$ip}{name};
 		push @{$hosts{$ip}{contactlists}}, @clids;
-		if ( @parent_names && defined $parent_names[0] ){
-		    $hosts{$ip}{parents} = join ',', @parent_names;    
-		}
-
 
 		# Add monitored services on this IP
 		foreach my $servid ( keys %{$iph->{srv}} ){
@@ -593,13 +606,13 @@ sub print_service {
     }
 
     if ( $srvname =~ /^BGPPEER/o ){
-	my $peeraddr;
-	unless ( $peeraddr = $argv->{peeraddr} ){
-	    $logger->warn("Service check for $srvname requires peeraddr." . 
+	my $peer_addr;
+	unless ( $peer_addr = $argv->{peer_addr} ){
+	    $logger->warn("Service check for $srvname requires peer_addr." . 
 			  " Skipping $srvname check for host $hostname.");
 	    return;
 	}
-	$checkcmd .= "!$peeraddr"; # Pass the argument to the check command
+	$checkcmd .= "!$peer_addr"; # Pass the argument to the check command
     }
     
     my %levels;

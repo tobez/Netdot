@@ -187,11 +187,6 @@ sub upg_104_105 {
 	push @statements, "ALTER TABLE device ADD COLUMN power_outlet varchar(255);";
 	push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 varchar(255);";
 
-	push @statements, "ALTER TABLE device_history ADD COLUMN oobname_2 varchar(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN oobnumber_2 varchar(32);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet varchar(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet_2 varchar(255);";
-
 	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL;";
 	push @statements, "ALTER TABLE ipblock ADD COLUMN rir varchar(255);";
 
@@ -238,7 +233,24 @@ sub upg_104_105 {
 	push @statements, "ALTER TABLE rrds ADD CONSTRAINT `fk_rr_2` FOREIGN KEY (`rr`) REFERENCES `rr` (`id`);";
 
 	push @statements, "ALTER TABLE device ADD COLUMN monitoring_template varchar(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN monitoring_template varchar(255);";
+
+	push @statements, "ALTER TABLE device ADD COLUMN host_device bigint;";
+	push @statements, "ALTER TABLE device ADD CONSTRAINT `fk_host_device` FOREIGN KEY (`host_device`) ".
+	    "REFERENCES `device` (`id`);";
+	push @statements, "CREATE INDEX host_device ON device (host_device);";
+
+	push @statements, "DROP TABLE backbonecable_history;";
+	push @statements, "DROP TABLE cablestrand_history;";
+	push @statements, "DROP TABLE circuit_history;";
+	push @statements, "DROP TABLE contact_history;";
+	push @statements, "DROP TABLE device_history;";
+	push @statements, "DROP TABLE entity_history;";
+	push @statements, "DROP TABLE interface_history;";
+	push @statements, "DROP TABLE person_history;";
+	push @statements, "DROP TABLE product_history;";
+	push @statements, "DROP TABLE site_history;";
+	push @statements, "DROP TABLE sitelink_history;";
+	push @statements, "DROP TABLE vlangroup_history;";
 
     }elsif ( $dbms eq 'Pg' ){
 
@@ -246,11 +258,6 @@ sub upg_104_105 {
 	push @statements, "ALTER TABLE device ADD COLUMN oobnumber_2 character varying(32);";
 	push @statements, "ALTER TABLE device ADD COLUMN power_outlet character varying(255);";
 	push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 character varying(255);";
-
-	push @statements, "ALTER TABLE device_history ADD COLUMN oobname_2 character varying(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN oobnumber_2 character varying(32);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet character varying(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN power_outlet_2 character varying(255);";
 
 	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL default 'f';";
 	push @statements, "ALTER TABLE ipblock ADD COLUMN rir character varying(255);";
@@ -265,6 +272,8 @@ sub upg_104_105 {
                              CONSTRAINT "pk_asn" PRIMARY KEY ("id")
                               );
                            CREATE INDEX "ASN2" on "asn" ("rir");';
+
+	push @statements, "GRANT SELECT,INSERT,UPDATE,DELETE ON asn TO netdot_user;";
 
  	push @statements, "ALTER TABLE ipblock ADD COLUMN asn bigint;";
 	push @statements, "ALTER TABLE ipblock ADD CONSTRAINT \"fk_asn\" FOREIGN KEY (\"asn\") ".
@@ -290,7 +299,24 @@ sub upg_104_105 {
 	push @statements, 'ALTER TABLE rrds ADD CONSTRAINT rrds1 UNIQUE (rr, key_tag, algorithm, digest_type);';
 
 	push @statements, "ALTER TABLE device ADD COLUMN monitoring_template character varying(255);";
-	push @statements, "ALTER TABLE device_history ADD COLUMN monitoring_template character varying(255);";
+
+	push @statements, "ALTER TABLE device ADD COLUMN host_device TYPE bigint;";
+	push @statements, "ALTER TABLE device ADD CONSTRAINT \"fk_host_device\" FOREIGN KEY (\"host_device\") ".
+	    "REFERENCES \"device\" (\"id\") DEFERRABLE;";
+
+	push @statements, "DROP TABLE backbonecable_history;";
+	push @statements, "DROP TABLE cablestrand_history;";
+	push @statements, "DROP TABLE circuit_history;";
+	push @statements, "DROP TABLE contact_history;";
+	push @statements, "DROP TABLE device_history;";
+	push @statements, "DROP TABLE entity_history;";
+	push @statements, "DROP TABLE interface_history;";
+	push @statements, "DROP TABLE person_history;";
+	push @statements, "DROP TABLE product_history;";
+	push @statements, "DROP TABLE site_history;";
+	push @statements, "DROP TABLE sitelink_history;";
+	push @statements, "DROP TABLE vlangroup_history;";
+
     }
   
     push @statements, "UPDATE schemainfo SET version='1.0.5' WHERE id=1;";

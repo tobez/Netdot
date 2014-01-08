@@ -264,6 +264,14 @@ my $refresh_url = "device.html?id=$id&view=$view";
           <li><a href="device.html?id=<% $id %>&view=BGP">BGP Peers</a></li>
 %       }
 %     }
+%     my @hosted = $o->hosted_devices;
+%     if ( @hosted ){
+%       if( $view eq "Hosted" ) {
+          <li><span>Hosted</span></li>
+%       } else {
+          <li><a href="device.html?id=<% $id %>&view=Hosted">Hosted</a></li>
+%       }
+%     }
 %     my @circuits = $o->get_circuits;
 %     if( scalar @circuits ){
 %         if( $view eq "Circuit" ){
@@ -299,10 +307,10 @@ my $refresh_url = "device.html?id=$id&view=$view";
           <li><a href="device.html?id=<% $id %>&view=FWT">FWT</a></li>
 %       }
 %     }
-%     if( $view eq "History" ) {
-        <li><span>History</span></li>
+%     if( $view eq "Audit" ) {
+        <li><span>Audit</span></li>
 %     } else {
-        <li><a href="device.html?id=<% $id %>&view=History">History</a></li>
+        <li><a href="device.html?id=<% $id %>&view=Audit">Audit</a></li>
 %     }
 %     if( $view eq "Rights" ) {
         <li><span>Access Rights</span></li>
@@ -354,8 +362,8 @@ my $refresh_url = "device.html?id=$id&view=$view";
 <%perl>
 my (@field_headers, @cell_data);
 
-$ui->add_to_fields(o=>$o, edit=>$editgen, fields=>['name', 'aliases'], field_headers=>\@field_headers, 
-		   cell_data=>\@cell_data, linkpages=>['host.html', '']);
+$ui->add_to_fields(o=>$o, edit=>$editgen, fields=>['name', 'aliases', 'host_device'], field_headers=>\@field_headers, 
+		   cell_data=>\@cell_data, linkpages=>['host.html', '', 'device.html']);
 
 $ui->add_to_fields(o=>$o, edit=>0, fields=>['sysname', 'sysdescription'], field_headers=>\@field_headers, 
 		   cell_data=>\@cell_data);
@@ -573,7 +581,7 @@ if ( $o->snmp_managed ){
 	    defaults=>['', \@auth_protocols, '', \@priv_protocols, \@sec_levels, ''],
 	    );
     }else{
-	$ui->add_to_fields(o=>$o, edit=>0, fields=>['community'], field_headers=>\@field_headers, 
+	$ui->add_to_fields(o=>$o, edit=>$editmgmt, fields=>['community'], field_headers=>\@field_headers, 
 			   cell_data=>\@cell_data);
     }
 }
@@ -1553,32 +1561,34 @@ if ( $ipeers ){
 
 %#######################################################################
 %#
-%# History
+%# Audit
 %#
 %#######################################################################
 %
-% if ( $view eq "History" || $view eq "All" ){
-%   my @h_objs = $o->get_history;
+% if ( $view eq "Audit" || $view eq "All" ){
+%   my @audit = $o->get_audit_records();
 %
-<!-- History Table -->
+<!-- Audit Records -->
 <div class="container">
     <div class="containerhead">
-        History
+        Audit
     </div>
     <div class="containerbody">
-        <& /generic/sortresults.mhtml, object => \@h_objs , view => "row" &>
+        <& /generic/sortresults.mhtml, object => \@audit , view => "row" &>
     </div>
 </div>
 % }
 %
 %
-<!-- End History Section -->
+<!-- End Audit Section -->
+
 %#######################################################################
 %#
 %# Circuit
 %#
 %#######################################################################
 
+<!-- Circuits -->
 %if ( $view eq "Circuit" || $view eq "All" ){
     <div class="container">
         <div class="containerhead">Circuits</div>
@@ -1587,6 +1597,24 @@ if ( $ipeers ){
         </div>
     </div>
 %}
+<!-- End Circuits Section -->
+
+%#######################################################################
+%#
+%# Hosted Devices
+%#
+%#######################################################################
+
+<!-- Hosted Devices -->
+%if ( $view eq "Hosted" || $view eq "All" ){
+    <div class="container">
+        <div class="containerhead">Hosted Devices</div>
+        <div class="containerbody">
+            <& /generic/sortresults.mhtml, object => \@hosted , view => "row" &>
+        </div>
+    </div>
+%}
+<!-- End Hosted Devices Section -->
 
 
 %################################################################
