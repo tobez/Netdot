@@ -1,5 +1,6 @@
 use strict;
-use Test::More qw(no_plan);
+use Test::More;
+use Test::Fatal;
 use lib "lib";
 
 BEGIN { use_ok('Netdot::Model::Device'); }
@@ -44,9 +45,31 @@ is($ints[0], $newints->[0], 'add_interfaces');
 my $newip = $obj->add_ip('10.0.0.1');
 is($newip->address, '10.0.0.1', 'add_ip');
 
+like(exception {
+	 $obj2->add_ip('10.0.10.10');
+}, qr/Need an interface to add this IP to/, 'cannot attach IP to device without interfaces');
+
+my $newints2 = $obj2->add_interfaces(1);
+my @ints2 = $obj2->interfaces();
+is($ints2[0], $newints2->[0], 'add_interfaces to second device');
+
+my $ip2 = $obj2->add_ip('10.0.10.10');
+is($ip2->address, '10.0.10.10', 'add_ip 2');
+
+is(Device->search(name=>"10.0.0.1")->first, $obj, 'search via IP' );
+isnt(Device->search(name=>"10.0.0.2")->first, $obj, 'search via IP fails' );
+
+my $devs = Device->get_all_from_block("10.0.0.0/16");
+ok(@$devs >= 2, "get_all_from_block returns expected number of devices");
+ok((grep { $_ eq $obj } @$devs), "get_all_from_block returns device attached to 10.0.0.1");
+ok((grep { $_ eq $obj2 } @$devs), "get_all_from_block returns device attached to 10.0.10.10");
+
 my $peers = $obj->get_bgp_peers();
 is(($peers->[0])->id, $p->id, 'get_bgp_peers');
 
 $obj->delete;
 isa_ok($obj, 'Class::DBI::Object::Has::Been::Deleted', 'delete');
 $obj2->delete;
+
+done_testing();
+

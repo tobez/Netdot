@@ -1628,25 +1628,14 @@ sub get_all_from_block {
     defined $block || 
 	$class->throw_fatal("Model::Device::get_all_from_block: Missing required arguments: block");
 
-    my $devs;
     if ( my $ipb = Ipblock->search(address=>$block)->first ){
-	$devs = $ipb->get_devices();
+	return $ipb->get_devices();
     }else{
-	# Get a list of host addresses for the given block
-	# This is highly inefficient
-	my $hosts = Ipblock->get_host_addrs($block);
-	my %devs; #index by id to avoid duplicates
-	foreach my $ip ( @$hosts ){
-	    if ( my $ipb = Ipblock->search(address=>$ip)->first ){
-		if ( $ipb->interface && $ipb->interface->device ){
-		    my $dev = $ipb->interface->device;
-		    $devs->{$dev->id} = $dev; 
-		}
-	    }
-	}
-	$devs = \values %{$devs};
+	return [$class->retrieve_from_sql("id in (
+		select distinct device from interface i, ipblock b
+		where ? >> b.addr and b.interface = i.id)",
+	    $block)];
     }
-    return $devs;
 }
 
 #################################################################
