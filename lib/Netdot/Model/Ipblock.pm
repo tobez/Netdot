@@ -151,13 +151,19 @@ sub search {
 	    if ( $class->matches_ip($args{address}) ){
 		$args{addr} = delete $args{address};
 		$args{addr} .= "/$args{prefix}" if defined $args{prefix};
+		delete $args{prefix};
 	    }else{
 		$class->throw_user(sprintf("Address %s does not match valid IP v4/v6 formats", $args{address}));
 	    }
 	}
     }
-    delete $args{prefix};
-    return $class->SUPER::search( %args, $opts );
+    if ($args{version}) {
+	$args{"family(addr)"} = delete $args{version};
+    }
+    if ($args{prefix}) {
+	$args{"masklen(addr)"} = delete $args{prefix};
+    }
+    return $class->search_where(\%args, $opts);
 }
 
 ##################################################################
