@@ -4769,8 +4769,8 @@ sub _get_poll_stats {
     # IP addresses
     my $sth1 = $dbh->prepare('SELECT COUNT(id)
                               FROM   ipblock 
-                              WHERE  version=4   AND
-                                     prefix=32   AND 
+                              WHERE  family(addr)=4   AND
+                                     masklen(addr)=32   AND 
                                      last_seen=?
                              ');
 
@@ -5488,7 +5488,6 @@ sub _update_macs_from_arp_cache {
 #   hash with following keys:
 #     caches         - Arrayref of hashrefs with ARP Cache info
 #     timestamp      - Time Stamp
-#     no_update_tree - Boolean 
 #     atomic         - Perform atomic updates
 sub _update_ips_from_arp_cache {
     my ($class, %argv) = @_;
@@ -5526,12 +5525,6 @@ sub _update_ips_from_arp_cache {
 	Netdot::Model->do_transaction( sub{ return Ipblock->fast_update(\%ip_updates) } );
     }else{
 	Ipblock->fast_update(\%ip_updates);
-    }
-    
-    unless ( $no_update_tree ){
-	foreach my $version ( sort keys %build_tree ){
-	    Ipblock->build_tree($version);
-	}
     }
     
     return 1;
@@ -6012,9 +6005,7 @@ sub _update_interfaces {
     my %old_ips;
     if ( my $devips = $self->get_ips ){
 	foreach ( @$devips ){
-	    # Use decimal address in the index to avoid ambiguities with notation
-	    my $numip = $_->address_numeric;
-	    $old_ips{$numip} = $_;
+	    $old_ips{$_->address} = $_;
 	}
     }
         
@@ -6110,8 +6101,7 @@ sub _update_interfaces {
 
 	# Remove the new interface's ip addresses from list to delete
 	foreach my $newaddr ( keys %{$info->{interface}->{$newif}->{ips}} ){
-	    my $numip = Ipblock->ip2int($newaddr);
-	    delete $old_ips{$numip} if exists $old_ips{$numip};
+	    delete $old_ips{Ipblock->netaddr($newaddr)->ip};
 	}
 
 	my $newname   = $info->{interface}->{$newif}->{name};
