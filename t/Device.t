@@ -69,6 +69,17 @@ is($ip2dev->{"10.0.0.1"}, $obj->id, "10.0.0.1 correctly points to device 1");
 is($ip2dev->{"10.0.10.10"}, $obj2->id, "10.0.10.10 correctly points to device 2");
 is($ip2dev->{"8.8.8.8"}, undef, "8.8.8.8 correctly points to no devices");
 
+like(exception {
+	 $obj->get_ips(sort_by => "nogenting");
+}, qr/Invalid sort criteria/, 'invalid sort criterium is invalid');
+is($obj->get_ips()->[0]->address, "10.0.0.1", "get_ips()");
+is($obj->get_ips(sort_by => "address")->[0]->address, "10.0.0.1", "get_ips(sort_by => 'address')");
+is($obj->get_ips(sort_by => "addr")->[0]->address, "10.0.0.1", "get_ips(sort_by => 'addr')");
+is($obj->get_ips(sort_by => "interface")->[0]->address, "10.0.0.1", "get_ips(sort_by => 'interface')");
+
+# We need to insert a subnet first.
+# is((values %{$obj->get_subnets})[0]->addr, "10.0.0.0/8", "get_subnets()");
+
 my $peers = $obj->get_bgp_peers();
 is(($peers->[0])->id, $p->id, 'get_bgp_peers');
 

@@ -2155,7 +2155,7 @@ sub arp_update {
 		push @ce_updates, {
 		    arpcache  => $ac->id,
 		    interface => $intid,
-		    ipaddr    => Ipblock->ip2int($ip),
+		    ipaddr    => Ipblock->ip2int($ip),  # XXX convert to normal IP - includes converting ArpCacheEntry table
 		    version   => $version,
 		    physaddr  => $mac,
 		};
@@ -4195,12 +4195,7 @@ sub _get_main_ip {
 		}
 	    }
 	}elsif ( $method eq 'highest_ip' ){
-	    my %dec;
-	    foreach my $int ( @allints ){
-		map { $dec{$_} = Ipblock->ip2int($_) } keys %allips;
-	    }
-	    my @ordered = sort { $dec{$b} <=> $dec{$a} } keys %dec;
-	    $ip = $ordered[0];
+	    $ip = Ipblock->highest_ip(keys %allips);
 	}elsif ( $method =~ /loopback/ ){
 	    my %loopbacks;
 	    foreach my $int ( @allints ){
@@ -4619,11 +4614,6 @@ sub _snmp_update_parallel_sqe {
 	Coro::AnyEvent::sleep(0.05);
     }
 
-    # Rebuild the IP tree if ARP caches were updated
-    if ( $argv{do_arp} ){
-	Ipblock->build_tree(4);
-	Ipblock->build_tree(6);
-    }
     my $runtime = time - $start;
     $class->_update_poll_stats($uargs{timestamp}, $runtime);
     
@@ -4717,11 +4707,6 @@ sub _snmp_update_parallel_traditional {
     # End forking state
     $class->_fork_end($pm);
     
-    # Rebuild the IP tree if ARP caches were updated
-    if ( $argv{do_arp} ){
-	Ipblock->build_tree(4);
-	Ipblock->build_tree(6);
-    }
     my $runtime = time - $start;
     $class->_update_poll_stats($uargs{timestamp}, $runtime);
     

@@ -2749,6 +2749,28 @@ sub netaddr {
     }
 }
 
+##################################################################
+
+=head2 highest_ip
+    
+    Return highest IP address from a list of IP addresses
+
+  Arguments:
+    list of IP addresses
+  Returns:
+    an IP address
+  Examples:
+    my $ip = Ipblock->highest_ip("10.0.0.1", "192.168.1.1", "8.8.8.8");
+    # "192.168.1.1"
+=cut
+
+sub highest_ip {
+    my ($self, @ips) = @_;
+    $self->isa_class_method('highest_ip');
+
+    @ips = sort { $b cmp $a } map { Ipblock->netaddr(address => $_) } @ips;
+    return $ips[0]->ip if @ips;
+}
 
 ##################################################################
 

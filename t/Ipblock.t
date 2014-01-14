@@ -897,6 +897,9 @@ like(exception {
 }, qr/missing required argument/i, "trying to get undefined status");
 is(Ipblock->_get_status_id(42), 42, "_get_status_id: and integer is just copied");
 
+is(Ipblock->highest_ip("10.0.0.1", "192.168.1.1", "8.8.8.8"), "192.168.1.1",
+   "highest_ip: sensible result");
+
 $dev->delete;
 isa_ok($dev, 'Class::DBI::Object::Has::Been::Deleted', 'delete device');
 
