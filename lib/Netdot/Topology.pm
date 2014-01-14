@@ -413,8 +413,7 @@ sub get_dp_links {
     # Finds remote device given an IP
     sub _find_by_ip {
 	my($ip, $allips) = @_;
-	my $decimal = Ipblock->ip2int($ip);
-	exists $allips->{$decimal} && return Device->retrieve($allips->{$decimal});
+	return Device->retrieve($allips->{$ip}) if $allips->{$ip};
     }
     
     foreach my $row ( @$results ){

@@ -64,6 +64,11 @@ ok(@$devs >= 2, "get_all_from_block returns expected number of devices");
 ok((grep { $_ eq $obj } @$devs), "get_all_from_block returns device attached to 10.0.0.1");
 ok((grep { $_ eq $obj2 } @$devs), "get_all_from_block returns device attached to 10.0.10.10");
 
+my $ip2dev = Device->get_ips_from_all();
+is($ip2dev->{"10.0.0.1"}, $obj->id, "10.0.0.1 correctly points to device 1");
+is($ip2dev->{"10.0.10.10"}, $obj2->id, "10.0.10.10 correctly points to device 2");
+is($ip2dev->{"8.8.8.8"}, undef, "8.8.8.8 correctly points to no devices");
+
 my $peers = $obj->get_bgp_peers();
 is(($peers->[0])->id, $p->id, 'get_bgp_peers');
 

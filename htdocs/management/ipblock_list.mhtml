@@ -90,7 +90,7 @@ if ( $type eq "address" ){
 	    push( @row, "");
             push( @text_row, "");
 	}
-	if ( my $did = $devs_by_ip->{$o->address_numeric} ){
+	if ( my $did = $devs_by_ip->{$o->address} ){
 	    my $dev = Device->retrieve($did);
 	    push @row, sprintf('<a href="device.html?id=%d">%s</a>', $did, $dev->fqdn);
 	    push( @text_row, $dev->fqdn);

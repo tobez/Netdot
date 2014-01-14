@@ -1771,7 +1771,7 @@ sub get_within_downtime {
   Arguments: 
     None
   Returns:   
-    Hashref with key=address (Decimal), value=device id
+    Hashref with key=IP address, value=device id
   Examples:
    my $devips = Device->get_ips_from_all();
 
@@ -1785,12 +1785,12 @@ sub get_ips_from_all {
     $logger->debug(sub{ "Device::get_ips_from_all: Retrieving all Device IPs..." });
 
     my $dbh = $class->db_Main;
-    my $aref1 = $dbh->selectall_arrayref("SELECT ip.address, d.id
+    my $aref1 = $dbh->selectall_arrayref("SELECT host(ip.addr), d.id
                                           FROM   ipblock ip, device d, interface i
                                           WHERE  i.device=d.id AND ip.interface=i.id
                                          ");
 
-    my $aref2 = $dbh->selectall_arrayref("SELECT ip.address, d.id
+    my $aref2 = $dbh->selectall_arrayref("SELECT host(ip.addr), d.id
                                           FROM   ipblock ip, device d 
                                           WHERE  d.snmp_target=ip.id;");
 
