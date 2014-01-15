@@ -2081,7 +2081,6 @@ sub list_layers {
     session        - SNMP Session
     cache          - hash reference with arp cache info (optional)
     timestamp      - Time Stamp (optional)
-    no_update_tree - Do not update IP tree
     atomic         - Flag. Perform atomic updates.
   Returns:
     True if successful
@@ -2141,7 +2140,6 @@ sub arp_update {
 
     $self->_update_ips_from_arp_cache(caches         => [$cache], 
 				      timestamp      => $timestamp, 
-				      no_update_tree => $argv{no_update_tree},
 				      atomic         => $argv{atomic},
 	);
 
@@ -2155,7 +2153,7 @@ sub arp_update {
 		push @ce_updates, {
 		    arpcache  => $ac->id,
 		    interface => $intid,
-		    ipaddr    => Ipblock->ip2int($ip),  # XXX convert to normal IP - includes converting ArpCacheEntry table
+		    ipaddr    => $ip,
 		    version   => $version,
 		    physaddr  => $mac,
 		};
@@ -2186,7 +2184,7 @@ sub arp_update {
     session - SNMP session (optional)
   Returns:
     Hashref of hashrefs containing:
-      ip version -> interface id -> mac address = ip address
+      ip version -> interface id -> ip address = mac address
   Examples:
     my $cache = $self->get_arp(%args)
 =cut
@@ -2737,7 +2735,6 @@ sub update_bgp_peering {
     bgp_peers      Flag. When discovering routers, update bgp_peers
     pretend        Flag. Do not commit changes to the database
     timestamp      Time Stamp (optional)
-    no_update_tree Flag. Do not update IP tree.
     atomic         Flag. Perform atomic updates.
     device_is_new  Flag. Specifies that device was just created.
 
@@ -2831,7 +2828,6 @@ sub snmp_update {
 	if ( $self->collect_arp ){
 	    $self->arp_update(session        => $sinfo, 
 			      timestamp      => $timestamp,
-			      no_update_tree => $argv{no_update_tree},
 			      atomic         => $atomic,
 		);
 	}else{
@@ -4502,7 +4498,6 @@ sub _snmp_update_parallel_args_check {
 	$uargs{$field} = $argv{$field} if defined ($argv{$field});
     }
 
-    $uargs{no_update_tree} = 1;
     $uargs{timestamp}      = $class->timestamp;
 
     return ($hosts, $devs, %uargs);
@@ -5491,9 +5486,8 @@ sub _update_macs_from_arp_cache {
 #     atomic         - Perform atomic updates
 sub _update_ips_from_arp_cache {
     my ($class, %argv) = @_;
-    my ($caches, $timestamp, 
-	$no_update_tree, $atomic) = @argv{'caches', 'timestamp', 
-					  'no_update_tree', 'atomic'};
+    my ($caches, $timestamp, $atomic) =
+    	@argv{'caches', 'timestamp', 'atomic'};
     
     my %ip_updates;
     
@@ -6252,7 +6246,7 @@ sub _update_interfaces {
 
 	$logger->info(sprintf("%s: IP %s no longer exists.  Removing.", 
 			      $host, $obj->address));
-	$obj->delete(no_update_tree=>1);
+	$obj->delete();
     }
     
     ##############################################################

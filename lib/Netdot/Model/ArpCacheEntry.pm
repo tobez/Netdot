@@ -53,25 +53,14 @@ sub fast_insert{
     my $sth = $dbh->prepare_cached("INSERT INTO arpcacheentry 
                                     (arpcache,interface,ipaddr,physaddr)
                                     VALUES (?, ?, 
-                                    (SELECT id FROM ipblock WHERE address=? AND PREFIX=? AND version=?), 
+                                    (SELECT id FROM ipblock WHERE host(addr)=? AND masklen(addr)=?), 
                                     (SELECT id FROM physaddr WHERE address=?))");	
     # Now walk our list and insert
     foreach my $r ( @$list ){
 	my $plen = ($r->{version} == 6)? 128 : 32;
-	$sth->bind_param(1, $r->{arpcache});
-	$sth->bind_param(2, $r->{interface});
-	if ( $class->config->get('DB_TYPE') eq 'mysql' ){
-	    # Workaround for http://bugs.mysql.com/bug.php?id=60213
-	    # See another example in Ipblock::search()
-	    $sth->bind_param(3, "".$r->{ipaddr}, SQL_INTEGER);
-	}else{
-	    $sth->bind_param(3, $r->{ipaddr});
-	}
-	$sth->bind_param(4, $plen);
-	$sth->bind_param(5, $r->{version});
-	$sth->bind_param(6, $r->{physaddr});
 	eval {
-	    $sth->execute();
+	    $sth->execute($r->{arpcache}, $r->{interface},
+	    	$r->{ipaddr}, $plen, $r->{physaddr});
 	};
 	if ( my $e = $@ ){
 	    $logger->warn("Problem inserting arpcacheentry: $e");
@@ -95,7 +84,7 @@ sub fast_insert{
   Returns:   
     Array of ArpCacheEntry objects
   Examples:
-    ArpCacheEntry->->search_by_ip($ip->id)
+    ArpCacheEntry->search_by_ip($ip->id)
 
 =cut
 
@@ -117,7 +106,7 @@ __PACKAGE__->set_sql(by_ip => qq{
   Returns:   
     Array of ArpCacheEntry objects
   Examples:
-    ArpCacheEntry->->search_interface($int->id, $tstamp)
+    ArpCacheEntry->search_interface($int->id, $tstamp)
 
 =cut
 

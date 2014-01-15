@@ -64,6 +64,24 @@ ok(@$devs >= 2, "get_all_from_block returns expected number of devices");
 ok((grep { $_ eq $obj } @$devs), "get_all_from_block returns device attached to 10.0.0.1");
 ok((grep { $_ eq $obj2 } @$devs), "get_all_from_block returns device attached to 10.0.10.10");
 
+my $ts = $obj->timestamp;
+$obj->update({collect_arp=>1});
+$obj->arp_update(cache => {
+    4 => { $ints[0] => { "192.168.52.46" => "7071BC115354",
+			 "192.168.66.66" => "90fba62a3270" }},
+    6 => { $ints[0] => { "2001:2010:1::beef" => "7071BC115354",
+			 "2001:2010:1::f00f" => "90fba62a3270" }}
+    }, timestamp => $ts);
+my @ace = ArpCacheEntry->search_interface($ints[0], $ts);
+ok(@ace >= 4, "found updated arp caches");
+ok(1 == (grep { $_->ipaddr->address eq "192.168.52.46" } @ace), "192.168.52.46 is in the results once");
+ok(1 == (grep { $_->ipaddr->address eq "2001:2010:1::f00f" } @ace), "2001:2010:1::f00f is in the results once");
+ok(2 == (grep { $_->physaddr->address eq "7071BC115354" } @ace), "7071BC115354 is in the results twice");
+ok(2 == (grep { $_->physaddr->address eq "90fba62a3270" } @ace), "90fba62a3270 is in the results twice");
+my %to_clean;
+%to_clean = (%to_clean, map { $_->ipaddr->address, $_->ipaddr } @ace);
+%to_clean = (%to_clean, map { $_->physaddr->address, $_->physaddr } @ace);
+
 my $ip2dev = Device->get_ips_from_all();
 is($ip2dev->{"10.0.0.1"}, $obj->id, "10.0.0.1 correctly points to device 1");
 is($ip2dev->{"10.0.10.10"}, $obj2->id, "10.0.10.10 correctly points to device 2");
@@ -86,6 +104,10 @@ is(($peers->[0])->id, $p->id, 'get_bgp_peers');
 $obj->delete;
 isa_ok($obj, 'Class::DBI::Object::Has::Been::Deleted', 'delete');
 $obj2->delete;
+
+for (values %to_clean) {
+    $_->delete;
+}
 
 done_testing();
 
