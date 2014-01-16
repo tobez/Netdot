@@ -1,0 +1,549 @@
+#! /usr/bin/env perl
+# Migrates Netdot DB from MySQL to Pg
+
+use warnings;
+use strict;
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+#use DBUTIL config => "$FindBin::Bin/../etc";
+use DBUTIL;
+use Netdot;
+use Data::Dumper;
+use Getopt::Long;
+
+my %CONFIG;
+$CONFIG{debug}        = 1;
+$CONFIG{CONFIG_DIR}   = "$FindBin::Bin/../etc";
+$CONFIG{SCHEMA_FILE}  = "$CONFIG{CONFIG_DIR}/netdot.meta";
+$CONFIG{DEFAULT_DATA} = "$CONFIG{CONFIG_DIR}/default_data";
+
+GetOptions(
+	"n"   => \my $dry_run,
+	"o=s" => \my $ops_file,
+	"help"=> \my $help,
+) or usage(1);
+usage(0) if $help;
+
+$| = 1;
+
+our $netdot_config = Netdot::Config->new(config_dir => $CONFIG{CONFIG_DIR});
+our $dbms = $netdot_config->get('DB_TYPE');
+our $dbh = &dbconnect();
+our $ops;
+our $L;		# current line
+our %stat;	# migration-related statistics to print at the end
+our %out; # Pg statements to do before and after data insertion
+our %in;   # MySQL tables structure taken from the dump
+
+die "can only work with PostgreSQL installations\n" unless $dbms eq "Pg";
+if ($ops_file) {
+	open $ops, ">", $ops_file or die "cannot create $ops_file: $!\n";
+}
+
+pg_introspect();
+mysql_go_through_dump();
+print Dumper \%stat;
+
+sub mysql_go_through_dump
+{
+    my $cur_table;
+    my $pre_everything_done = 0;
+
+    cmd("set client_min_messages='warning'");
+    cmd("\\set ON_ERROR_STOP on");
+    while (defined($L = <>)) {
+	if ($L =~ /^\s*--/) {
+	    # skip one-line SQL comments
+	    $stat{dump_single_line_comments}++;
+	} elsif ($L =~ m|^\s*/\*.*?\*/\s*(;\s*)?$|) {
+	    # skip multi-line SQL comments on a single line
+	    $stat{dump_multi_line_comments}++;
+	} elsif ($L =~ /^\s*$/) {
+	    # skip empty lines
+	    $stat{dump_empty_lines}++;
+	} elsif ($L =~ /^\s*DROP TABLE IF EXISTS .*?;\s*$/) {
+	    $stat{dump_table_drops}++;
+	} elsif ($L =~ /^\s*LOCK TABLES `(.*?)` WRITE;\s*$/) {
+	    $stat{dump_table_locks}++;
+	    $cur_table = $1;
+	    unless ($pre_everything_done) {
+		l2("pre_everything, ");
+		$pre_everything_done++;
+		cmd("-- Before anything can be done, relax some constraints");
+		for my $t (sort keys %out) {
+		    for my $c (@{$out{$t}{pre_everything}}) {
+			cmd($c);
+		    }
+		}
+		cmd("");
+	    }
+	    l2("pre_insert, ");
+	    cmd("-- Handling table $cur_table");
+	    for my $c (@{$out{$cur_table}{pre_insert}}) {
+		cmd($c);
+	    }
+	} elsif ($L =~ /^\s*CREATE TABLE `(.*?)` \(\s*$/) {
+	    $stat{dump_table_creates}++;
+	    $cur_table = $1;
+	    l0("processing table $cur_table... ");
+	    mysql_parse_table_structure($cur_table);
+
+	    for my $c (@{$in{$cur_table}{cols}}) {
+		unless (defined $out{$cur_table}{ci}{$c}) {
+		    die "\n$cur_table: MySQL column $c not found in Pg schema\n";
+		}
+	    }
+	    for my $c (@{$out{$cur_table}{cols}}) {
+		unless (defined $in{$cur_table}{ci}{$c}) {
+		    if ($out{$cur_table}{cinfo}{$c}{default}) {
+			print "\nWARNING: $cur_table: Pg column $c not found ",
+			      "in MySQL schema, but it has a default value, ",
+			      "so proceeding\n";
+		    } elsif ($out{$cur_table}{cinfo}{$c}{nullable}) {
+			print "\nWARNING: $cur_table: Pg column $c not found ",
+			      "in MySQL schema, but it can be NULL, ",
+			      "so proceeding\n";
+		    } else {
+			die "\nFATAL: $cur_table: Pg column $c not found ".
+			      "in MySQL schema, cannot proceed\n";
+		    }
+		}
+	    }
+
+	} elsif ($L =~ /^\s*UNLOCK TABLES;\s*$/) {
+	    $stat{dump_table_unlocks}++;
+	    if ($cur_table eq "schemainfo") {
+		l2("special handling, ");
+		cmd("TRUNCATE TABLE ONLY $cur_table");
+		cmd("INSERT INTO $cur_table (id,info,version) VALUES (1,NULL,'$out{schemainfo}{version}')");
+	    }
+	    l2("post_insert, ");
+	    for my $c (@{$out{$cur_table}{post_insert}}) {
+		cmd($c);
+	    }
+	    if (defined $in{$cur_table}{tracked_index}) {
+		my $seq = $out{$cur_table}{sequence_reset};
+		my $val = $out{$cur_table}{sequence_value} + 1;
+		$seq =~ s/\x01/$val/;
+		cmd($seq);
+	    }
+	    cmd("");
+	    l1("done");
+	} elsif ($L =~ /^\s*INSERT INTO `(.*?)` VALUES \.\.\.\s*$/) {
+	    $stat{dump_debug_inserts}++;
+	} elsif ($L =~ /^INSERT INTO `(\w+)` VALUES /gc) {
+	    $stat{dump_inserts}++;
+	    $cur_table = $1;
+	    mysql_handle_inserts($cur_table);
+	} else {
+	    die "unrecognized MySQL dump construct at line $.\n";
+	}
+    }
+
+    l0("post-processing... ");
+    l2("post_everything, ");
+    cmd("-- Restore remaining constraints");
+    for my $t (reverse sort keys %out) {
+	for my $c (@{$out{$t}{post_everything}}) {
+	    cmd($c);
+	}
+    }
+    cmd("");
+    l1("done");
+    l1("all is good");
+}
+
+sub mysql_handle_inserts
+{
+    my $table_name = shift;
+    my $n_rows = 0;
+    my $s = "";
+    my $tracked_index = $in{$table_name}{tracked_index};
+    my $sequence_value;
+    if (defined($tracked_index)) {
+	$sequence_value = $out{$table_name}{sequence_value};
+    }
+
+    while (my $row = mysql_parse_insert_single_row(
+	$in{$table_name}{convert}))
+    {
+	$s .= join("\t",@$row) . "\n";
+	$n_rows++;
+	if (defined($tracked_index) && $row->[$tracked_index] > $sequence_value) {
+	    $sequence_value = $row->[$tracked_index];
+	}
+    }
+    if (defined($tracked_index)) {
+	$out{$table_name}{sequence_value} = $sequence_value;
+    }
+    l2("$n_rows, ");
+    cmd("COPY $table_name (".
+	join(", ", @{$in{$table_name}{cols}}).
+	") FROM STDIN", $s, "\\.");
+    $stat{rows_migrated} += $n_rows;
+}
+
+sub mysql_parse_insert_single_row
+{
+    return undef if $L =~ /\G;/gc;
+    die "bad row start at line $. pos ".pos($L)."\n" unless $L =~ /\G\(/gc;
+
+    my $conversions = shift;
+    my $i = 0;
+    my @row;
+    while (1) {
+	my $col = mysql_parse_column($conversions->[$i]);
+	last if ref $col;
+	push @row, $col;
+	$i++;
+    }
+    die "bad row end at line $. pos ".pos($L)."\n" unless $L =~ /\G\)/gc;
+    die "bad row separator at line $. pos ".pos($L)."\n" unless $L =~ /\G([,;])/gc;
+    pos($L)=pos($L)-1 if $1 eq ";";
+    return \@row;
+}
+
+sub mysql_parse_column
+{
+    my $convert = shift;
+
+    if ($L =~ /\G\)/) {
+	return []; # The end of row is indicated by an empty array reference
+    } elsif ($L =~ /\GNULL([,)])/gc) {
+	pos($L)=pos($L)-1 if $1 eq ")";
+	return "\\N";
+    } elsif ($L =~ /\G([-+]?\d+)([,)])/gc) {
+	pos($L)=pos($L)-1 if $2 eq ")";
+	return $convert->($1);
+    } elsif ($L =~ /\G'/gc) {
+	my $s = "";
+	while ($L =~ /\G([^']*)/gc) {
+	    $s .= $1;
+	    if (substr($s,-1) ne "\\") {
+		# Assume this is the real end of quoted string.
+		last;
+	    } else {
+		# Skip escaped quote.  This ignores the possibility of strings
+		# ending with \\', like: 'abcd\\'.  On such the parser will fail. XXX
+		pos($L)=pos($L)+1;
+		$s .= "'";
+	    }
+	}
+	die "did not find closing quote for a string at line $. pos ".pos($L)."\n"
+	    unless $L =~ /\G'([,)])/gc;
+	pos($L)=pos($L)-1 if $1 eq ")";
+
+	# Get the true binary content of the string.
+	$s =~ s/\\(.)/mysql_unescape($1)/ge;
+	return $convert->($s);
+    } else {
+	die "bad column value at line $. pos ".pos($L)."\n";
+    }
+}
+
+sub mysql_unescape
+{
+    my $c = shift;
+    return "\0" if $c eq "0";
+    return "\x08" if $c eq "b";
+    return "\n" if $c eq "n";
+    return "\r" if $c eq "r";
+    return "\t" if $c eq "t";
+    return "\x1a" if $c eq "Z";
+    # Everything else of a form \c will just return c, including the
+    # commented out variants below:
+    #   return "\\" if $c eq "\\";
+    #   return "'" if $c eq "'";
+    #   return '"' if $c eq '"';
+    #   return "%" if $c eq "%";
+    #   return "_" if $c eq "_";
+    return $c;
+}
+
+sub mysql_parse_table_structure
+{
+    my $table_name = shift;
+
+    $L = <>;
+    if ($L =~ /^\s+`(.*?)` (\S+).*,\s*$/) {
+	my ($col, $type) = ($1, $2);
+	push @{$in{$table_name}{cols}}, $col;
+	$in{$table_name}{ci}{$col} = @{$in{$table_name}{cols}}-1;
+	if ($col eq $out{$table_name}{sequence_column}) {
+	    $in{$table_name}{tracked_index} = $in{$table_name}{ci}{$col};
+	    $in{$table_name}{tracked_name} = $col;
+	    $out{$table_name}{sequence_value} = 0;
+	}
+	if ($type =~ /blob$/i) {
+	    push @{$in{$table_name}{convert}}, \&pg_copy_from_bytea;
+	} elsif ($type =~ /^timestamp$/i) {
+	    push @{$in{$table_name}{convert}}, \&pg_copy_from_timestamp;
+	} elsif ($type =~ /bigint/i) {
+	    if ($out{$table_name}{cinfo}{$col}{nullify_zeroes}) {
+		push @{$in{$table_name}{convert}}, \&pg_copy_nullify_zeroes;
+	    } else {
+		push @{$in{$table_name}{convert}}, \&pg_copy_verbatim_integer;
+	    }
+	} else {
+	    push @{$in{$table_name}{convert}}, \&pg_copy_from_text;
+	}
+    } elsif ($L =~ /^\s+PRIMARY KEY /) {
+	# skip
+    } elsif ($L =~ /^\s+UNIQUE KEY /) {
+	# skip
+    } elsif ($L =~ /^\s+KEY /) {
+	# skip
+    } elsif ($L =~ /^\s+CONSTRAINT /) {
+	# skip
+    } elsif ($L =~ /^\s*\) ENGINE/) {
+	return;
+    }
+    mysql_parse_table_structure($table_name);
+}
+
+sub pg_introspect
+{
+    l0("introspecting current Pg database... ");
+    for my $table ($dbh->tables(undef, "public", undef, "TABLE")) {
+	$table =~ s/^public\.//;
+	$out{$table} = migration_statements_for_table($table);
+    }
+    l1(scalar(keys %out), "tables");
+    #print Dumper \%out;
+}
+
+sub pg_copy_verbatim_integer { shift }
+
+sub pg_copy_nullify_zeroes
+{
+    my $v = shift;
+    return "\\N" unless $v;
+    return $v;
+}
+
+sub pg_copy_from_bytea
+{
+    # Using HEX bytea representation - only available since PostgreSQL 9.0
+    my $s = unpack("H*", shift);
+    return "\\\\x$s";
+}
+
+sub pg_copy_from_text
+{
+    my $s = shift;
+    $s =~ s/\\/\\\\/g;
+    $s =~ s/\x08/\\b/g;
+    $s =~ s/\f/\\f/g;
+    $s =~ s/\n/\\n/g;
+    $s =~ s/\r/\\r/g;
+    $s =~ s/\t/\\t/g;
+    $s =~ s/\x0b/\\v/g; # vertical tab
+    return $s;
+}
+
+sub pg_copy_from_timestamp
+{
+    my $s = pg_copy_from_text(shift);
+    # Pg does not like zero timestamps.
+    return "1970-01-02 00:00:01" if $s eq "0000-00-00 00:00:00";
+    return $s;
+}
+
+sub migration_statements_for_table
+{
+    my $table_name = shift;
+
+    my @pre_everything;
+    my @pre_insert;
+    my @post_insert;
+    my $sequence_reset;
+    my $sequence_column;
+    my @post_everything;
+
+    my $pk_name;
+    my @indexes;
+    my %indexes;
+    my $ALTER_TABLE = "ALTER TABLE $table_name";
+
+    for my $i (@{$dbh->primary_key_info(undef, undef, $table_name)
+	       ->fetchall_arrayref({})||[]})
+    {
+	$pk_name = $i->{PK_NAME};
+	$sequence_column = $i->{COLUMN_NAME};
+	$sequence_reset =
+	    "alter sequence ${table_name}_${sequence_column}_seq restart with \x01";
+	#   "SELECT pg_catalog.setval('${table_name}_${sequence_column}_seq', \x01, false)";
+    }
+    for my $i (@{$dbh->statistics_info(undef, undef, $table_name, 0, 0)
+	       ->fetchall_arrayref({})||[]})
+    {
+	my $idx_name = $i->{INDEX_NAME};
+	next unless $idx_name;
+	$idx_name = qq("$idx_name") if lc $idx_name ne $idx_name;
+	my $idx = $indexes{$idx_name};
+	unless ($idx) {
+	    $idx = $indexes{$idx_name} = {
+		name => $idx_name,
+	    };
+	    push @indexes, $idx;
+	}
+	if ($idx->{name} eq $pk_name) {
+	    $idx->{constraint} = "PRIMARY KEY";
+	} elsif (!$i->{NON_UNIQUE}) {
+	    $idx->{constraint} = "UNIQUE";
+	}
+	$idx->{columns}[-1 + ($i->{ORDINAL_POSITION}||0)] = $i->{COLUMN_NAME};
+	$idx->{type} = $i->{TYPE};
+    }
+
+    for my $idx (@indexes) {
+	if ($idx->{constraint}) {
+	    push @pre_insert, "$ALTER_TABLE DROP CONSTRAINT $idx->{name}";
+	} else {
+	    push @pre_insert, "DROP INDEX $idx->{name}";
+	}
+
+	if ($idx->{constraint}) {
+	    push @post_insert, "$ALTER_TABLE ADD CONSTRAINT $idx->{name} " .
+		"$idx->{constraint} (" .
+		join(", ", @{$idx->{columns}}) . ")";
+	} else {
+	    push @post_insert, "CREATE INDEX $idx->{name} ON $table_name " .
+	    	"USING $idx->{type} (" .
+		join(", ", @{$idx->{columns}}) . ")";
+	}
+    }
+
+    my (@cols, %ci, %cinfo);
+    for my $c (@{$dbh->column_info(undef, undef, $table_name, undef)
+	       ->fetchall_arrayref({})||[]})
+    {
+	my $col = $c->{COLUMN_NAME};
+	# "position" is an SQL string function,
+	# but "position" used as a column name in
+	# this script won't clash with the usage as
+	# a function.
+	$col = 'position' if $col eq '"position"';
+	my $ALTER_COLUMN = "$ALTER_TABLE ALTER COLUMN $col";
+	$cinfo{$col}{nullable} = 1;
+	$cinfo{$col}{default} = "";
+	if ($c->{COLUMN_DEF}) {
+	    push @pre_insert,  "$ALTER_COLUMN DROP DEFAULT";
+	    push @post_insert, "$ALTER_COLUMN SET DEFAULT $c->{COLUMN_DEF}";
+	    $cinfo{$col}{default} = $c->{COLUMN_DEF};
+	}
+	if (!$c->{NULLABLE}) {
+	    push @pre_insert,  "$ALTER_COLUMN DROP NOT NULL";
+	    push @post_insert, "$ALTER_COLUMN SET NOT NULL";
+	    $cinfo{$col}{nullable} = 0;
+	}
+	$ci{$col} = @cols;
+	push @cols, $col;
+    }
+
+    push @pre_insert, "TRUNCATE TABLE ONLY $table_name";
+
+    my $sth = $dbh->foreign_key_info(undef, undef, undef, undef, undef, $table_name);
+    if ($sth) {
+	for my $f (@{$sth->fetchall_arrayref({})}) {
+	    die "Unknown deferability in $f->{FK_NAME} for $table_name"
+	    	unless $f->{DEFERABILITY} eq 5;
+	    push @pre_everything, "$ALTER_TABLE DROP CONSTRAINT $f->{FK_NAME}";
+	    push @post_everything, "$ALTER_TABLE ADD CONSTRAINT $f->{FK_NAME} " .
+	    	"FOREIGN KEY ($f->{FK_COLUMN_NAME}) " .
+		"REFERENCES $f->{UK_TABLE_NAME}($f->{UK_COLUMN_NAME}) " .
+		"DEFERRABLE";
+	    $cinfo{$f->{FK_COLUMN_NAME}}{nullify_zeroes} = 1;
+	}
+    }
+
+    my $data = {
+	cols            => \@cols,
+	ci              => \%ci,
+	cinfo           => \%cinfo,
+	pre_everything  => \@pre_everything,
+	pre_insert      => \@pre_insert,
+	post_insert     => \@post_insert,
+	post_everything => \@post_everything,
+	sequence_reset  => $sequence_reset,
+	sequence_column => $sequence_column,
+    };
+    if ($table_name eq "schemainfo") {
+	($data->{version}) = $dbh->selectrow_array("select version from schemainfo");
+    }
+    return $data;
+}
+
+sub l
+{
+    my $s = "@_";
+    print scalar(localtime), ": $s\n";
+}
+
+sub l0
+{
+    my $s = "@_";
+    print scalar(localtime), ": $s";
+}
+
+sub l1
+{
+    my $s = "@_";
+    print "$s\n";
+}
+
+sub l2
+{
+    my $s = "@_";
+    print "$s";
+}
+
+sub cmd
+{
+    my ($sql, $data, $end_of_data) = @_;
+    if ($ops) {
+	print $ops $sql;
+	print $ops ";" if $sql && $sql !~ /^--/ && $sql !~ /^\\set\s+/;
+	print $ops "\n";
+	if ($sql && $sql =~ /^--\s+(.*)$/) {
+	    print $ops "\\echo '$1'\n";
+	}
+	print $ops $data if $data;
+	print $ops $end_of_data, "\n" if $end_of_data;
+    }
+    if (!$dry_run && $sql && $sql !~ /^--/ && $sql !~ /^\\?set\s+/) {
+	$dbh->do($sql);
+	$dbh->pg_putcopydata($data) if $data;
+	$dbh->pg_putcopyend() if $end_of_data;
+    }
+}
+
+sub usage
+{
+    print STDERR <<EOF;
+Netdot MySQL to PostgreSQL migration utility version $Netdot::VERSION.
+
+Usage:
+   $0 [-n] [-o ops_file] mysql.dump
+   $0 [-n] [-o ops_file] <mysql.dump
+   $0 --help
+   $0 -h
+
+Parameters:
+--help or -h  produce this text and quit
+-n            dry run - do not modify Pg DB
+-o ops_file   record what is (or would be) done in a file
+
+The $0 utility always connects to Pg database -
+in case of a dry run it is still needed for introspection.
+Database connection parameters are taken from Netdot configuration.
+
+In theory it should be possible to feed generated ops file to
+the psql utility, so one way to perform the migration is to
+run $0 -n -o ops.sql and then psql ... <ops.sql.
+
+This is usually not needed but might come handy in case of
+migration problems.
+EOF
+    exit(shift);
+}
