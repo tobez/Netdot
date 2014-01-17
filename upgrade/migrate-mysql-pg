@@ -278,6 +278,8 @@ sub mysql_parse_table_structure
 	    push @{$in{$table_name}{convert}}, \&pg_copy_from_bytea;
 	} elsif ($type =~ /^timestamp$/i) {
 	    push @{$in{$table_name}{convert}}, \&pg_copy_from_timestamp;
+	} elsif ($type =~ /^date$/i) {
+	    push @{$in{$table_name}{convert}}, \&pg_copy_from_date;
 	} elsif ($type =~ /bigint/i) {
 	    if ($out{$table_name}{cinfo}{$col}{nullify_zeroes}) {
 		push @{$in{$table_name}{convert}}, \&pg_copy_nullify_zeroes;
@@ -346,6 +348,14 @@ sub pg_copy_from_timestamp
     my $s = pg_copy_from_text(shift);
     # Pg does not like zero timestamps.
     return "1970-01-02 00:00:01" if $s eq "0000-00-00 00:00:00";
+    return $s;
+}
+
+sub pg_copy_from_date
+{
+    my $s = pg_copy_from_text(shift);
+    # Pg does not like zero dates - but all date columns are nullable in Netdot
+    return "\\N" if $s eq "0000-00-00";
     return $s;
 }
 
