@@ -29,6 +29,7 @@ $| = 1;
 our $netdot_config = Netdot::Config->new(config_dir => $CONFIG{CONFIG_DIR});
 our $dbms = $netdot_config->get('DB_TYPE');
 our $dbh = &dbconnect();
+our $use_bytea_escape = $dbh->{pg_server_version} < 90000;
 our $ops;
 our $L;		# current line
 our %stat;	# migration-related statistics to print at the end
@@ -275,7 +276,7 @@ sub mysql_parse_table_structure
 	    $out{$table_name}{sequence_value} = 0;
 	}
 	if ($type =~ /blob$/i) {
-	    push @{$in{$table_name}{convert}}, \&pg_copy_from_bytea;
+	    push @{$in{$table_name}{convert}}, $use_bytea_escape ? \&pg_copy_from_bytea_escape : \&pg_copy_from_bytea_hex;
 	} elsif ($type =~ /^timestamp$/i) {
 	    push @{$in{$table_name}{convert}}, \&pg_copy_from_timestamp;
 	} elsif ($type =~ /^date$/i) {
@@ -323,11 +324,18 @@ sub pg_copy_nullify_zeroes
     return $v;
 }
 
-sub pg_copy_from_bytea
+sub pg_copy_from_bytea_hex
 {
     # Using HEX bytea representation - only available since PostgreSQL 9.0
     my $s = unpack("H*", shift);
     return "\\\\x$s";
+}
+
+sub pg_copy_from_bytea_escape
+{
+    my $s = shift;
+    $s =~ s/([\0-\037\134\177-\377])/"\\\\" . sprintf("%03o", ord $1)/ge;
+    return $s;
 }
 
 sub pg_copy_from_text
