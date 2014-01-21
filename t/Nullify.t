@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More qw(no_plan);
+use Test::More;
 use lib "lib";
 use Data::Dumper;
 
@@ -14,12 +14,12 @@ my $subnet_id = $subnet->id;
 ok(defined $subnet, 'subnet insert');
 
 $subnet->set('description', 'test1');
-diag("update without params returns ", $subnet->update);
+ok($subnet->update, "update without params returns success");
 undef $subnet;
 $subnet = Ipblock->retrieve($subnet_id);
 is($subnet->description, 'test1', 'update without params');
 
-diag("update with params returns ", $subnet->update({description => 'test2'}));
+ok($subnet->update({description => 'test2'}), "update with params returns success");
 undef $subnet;
 $subnet = Ipblock->retrieve($subnet_id);
 is($subnet->description, 'test2', 'update with params');
@@ -35,8 +35,10 @@ eval {
     $vlan->delete;
     undef $subnet;
     $subnet = Ipblock->retrieve($subnet_id);
-    is($subnet->vlan, 0, 'nullify');
+    ok(!$subnet->vlan, 'nullify');
 };
 fail($@) if $@;
 
 $subnet->delete;
+
+done_testing;
