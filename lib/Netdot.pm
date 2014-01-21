@@ -30,9 +30,6 @@ $class->{_dns}    = Netdot::Util::DNS->new();
 # Memory cache data
 $class->{_cache_data} = {};
 
-# Be sure to return 1
-1;
-
 =head1 NAME
 
 Netdot - Network Documentation Tool
@@ -369,6 +366,8 @@ sub cache {
     }
 }
 
+# Be actually sure to return 1 :)
+1;
 
 =head1 AUTHOR
 
