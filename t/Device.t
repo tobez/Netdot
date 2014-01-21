@@ -4,6 +4,7 @@ use Test::Fatal;
 use lib "lib";
 
 BEGIN { use_ok('Netdot::Model::Device'); }
+BEGIN { use_ok('Netdot::Exporter'); }
 
 my $dd = Netdot->config->get('DEFAULT_DNSDOMAIN');
 my $ddn = (Zone->search(name=>$dd)->first)->name;
@@ -100,6 +101,24 @@ is($obj->get_ips(sort_by => "interface")->[0]->address, "10.0.0.1", "get_ips(sor
 
 my $peers = $obj->get_bgp_peers();
 is(($peers->[0])->id, $p->id, 'get_bgp_peers');
+
+# The Exporter get_device_info datastructure tests
+$obj->set(monitored => 1);  ok($obj->update, "update without parameters");
+my $exporter  = Netdot::Exporter->new();
+isa_ok($exporter, 'Netdot::Exporter', 'Constructor');
+$exporter->cache('exporter_device_info', ""); # hack: clear cache
+my $xp = $exporter->get_device_info();
+ok($xp, "Exporter->get_device_info returns something");
+ok($xp->{$obj->id}, "first device is there");
+ok(!$xp->{$obj2->id}, "second device is not there since it's not monitored");
+ok($xp->{$obj->id}{interface}{$ints[0]->id}, "first device has an interface we expect");
+
+my $ip1 = $obj->get_ips()->[0];
+my $ipinfo = $xp->{$obj->id}{interface}{$ints[0]->id}{ip}{$ip1->id};
+ok($ipinfo, "first device has the IP we expect");
+is($ipinfo->{addr}, "10.0.0.1", "that IP has correct address, 10.0.0.1");
+is($ipinfo->{version}, 4, "that IP has correct version, 4");
+is($ipinfo->{subnet}, $ip1->parent->id, "that IP has correct subnet, ". $ip1->parent->addr);
 
 $obj->delete;
 isa_ok($obj, 'Class::DBI::Object::Has::Been::Deleted', 'delete');

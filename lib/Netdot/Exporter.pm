@@ -88,13 +88,13 @@ sub get_device_info {
                     d.monitoring_template, d.down_from, d.down_until, entity.name, entity.aliases,
                     site.name, site.number, site.aliases, contactlist.id,
                     i.id, i.number, i.name, i.description, i.admin_status, i.monitored, i.contactlist,
-                    ip.id, ip.address, ip.version, ip.parent, ip.monitored, rr.name, zone.name,
+                    ip.id, host(ip.addr), family(ip.addr), ipblock_parent(ip.id), ip.monitored,
+                    rr.name, zone.name,
                     service.id, service.name, ipservice.monitored, ipservice.contactlist,
                     bgppeering.bgppeeraddr, bgppeering.contactlist, peer.asnumber, peer.asname
           FROM      rr, zone, device d
-          LEFT OUTER JOIN (bgppeering, entity peer) ON d.id=bgppeering.device 
-                           AND bgppeering.entity=peer.id
-                           AND bgppeering.monitored=1
+          LEFT OUTER JOIN bgppeering ON d.id=bgppeering.device AND bgppeering.monitored
+          LEFT OUTER JOIN entity peer ON bgppeering.entity=peer.id
           LEFT OUTER JOIN devicecontacts ON d.id=devicecontacts.device
           LEFT OUTER JOIN contactlist ON contactlist.id=devicecontacts.contactlist
           LEFT OUTER JOIN entity ON d.used_by=entity.id
@@ -103,7 +103,7 @@ sub get_device_info {
           LEFT OUTER JOIN ipblock ip ON ip.interface=i.id
           LEFT OUTER JOIN ipservice ON ipservice.ip=ip.id
           LEFT OUTER JOIN service ON ipservice.service=service.id
-          WHERE     d.monitored='1'
+          WHERE     d.monitored
                AND  i.device=d.id                  
                AND  d.name=rr.id 
                AND  rr.zone=zone.id
