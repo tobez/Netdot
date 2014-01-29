@@ -850,12 +850,6 @@ sub import_records {
 	}
     }
 
-    if ( %new_ips ){
-	# Update IP space hierarchy
-	Ipblock->build_tree(4) if exists $new_ips{4};
-	Ipblock->build_tree(6) if exists $new_ips{6};
-    }
-
     1;
 }
 
