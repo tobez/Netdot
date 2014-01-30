@@ -92,7 +92,7 @@ if (!$result) {
   exit(1);
  }
 
-$query_str =  "SELECT     rr.name, zone.name, ipblock.address, site.name, p.name, p.sysobjectid, pt.name, 
+$query_str =  "SELECT     rr.name, zone.name, host(ipblock.addr), site.name, p.name, p.sysobjectid, pt.name, 
                            d.id, d.snmp_managed, d.snmp_polling, d.community, d.snmp_version, 
                            d.snmp_authkey, d.snmp_authprotocol, d.snmp_privkey, d.snmp_privprotocol,
                            d.snmp_securityname, e.name, m.name 

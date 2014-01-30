@@ -83,7 +83,7 @@ $st->execute();
 my $last_arp_tstamp = $st->fetchrow_array();
 
 my $st3 = $dbh->prepare("
-   SELECT p.address, ip.address, i.number, rr.name
+   SELECT p.address, host(ip.addr), i.number, rr.name
    FROM   physaddr p, interface i, arpcacheentry arpe, 
           arpcache arp, ipblock ip, device d, rr
    WHERE  arpe.physaddr=p.id 
