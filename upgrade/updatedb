@@ -378,15 +378,30 @@ function ipblock_parent(bigint)
 returns bigint as $$
  select id from ipblock
  where
-  addr >>= (
-   select addr from ipblock
+  iprange(addr) >>= (
+   select iprange(addr) from ipblock
    where
     id = $1
   )
   and id != $1
- order by masklen(addr) desc
+ order by @ iprange(addr)
  limit 1
-$$ language SQL;
+$$ language SQL stable;
+EOF
+    push @statements, <<'EOF';
+create or replace
+function is_network(inet)
+returns bool as $$
+ select
+ case
+  when family($1) = 6 and masklen($1) = 128 then
+   false
+  when family($1) = 4 and masklen($1) = 32 then
+   false
+  else
+   true
+ end
+$$ language SQL immutable;
 EOF
 }
 
