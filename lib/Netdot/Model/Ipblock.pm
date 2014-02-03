@@ -754,7 +754,10 @@ sub get_roots {
 
     $version ||= 4;
    
-    my %where = ('ipblock_parent(id)' => undef);
+    my %where = (
+	'is_network(addr)' => 1,
+	'ipblock_parent(id)' => undef
+    );
     my %opts  = (order_by => 'addr');
     
     my $len;

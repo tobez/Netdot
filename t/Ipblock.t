@@ -68,6 +68,9 @@ if (!$reserved) {
 	ok(!scalar(grep { $subnet->id eq $_->id } @unused_v4), "2: newly inserted subnet is NOT unused because of reservations");
 }
 
+my @roots0 = Ipblock->get_roots();
+ok(scalar(@roots0), "get roots is fast");
+
 my $address = Ipblock->insert({
     address => "192.0.2.10",
     prefix  => '32',
