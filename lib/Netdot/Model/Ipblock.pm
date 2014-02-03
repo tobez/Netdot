@@ -299,35 +299,38 @@ sub get_unused_subnets {
     my ($class, %args) = @_;
     $class->isa_class_method('get_unused_subnets');
 
-    my (@phrases, @values);
-    push @phrases, <<EOF;
-id in (
- select id from ipblock o where not exists (
-  select id from ipblock i where o.addr >> i.addr))
-EOF
-    push @phrases, <<EOF;
-status in (
- select id from ipblockstatus where name = 'Subnet')
-EOF
+    my @phrases;
+    my @values;
+
+    push @phrases, "is_network(addr)";
+    push @phrases, "a.status = s.id";
+    push @phrases, "s.name = ?";
+    push @values, "Subnet";
+
     if ($args{version} && $args{version} == 4) {
 	push @phrases, "family(addr) = ?";
 	push @values, 4;
-	push @phrases, "not(addr <<= ?)";
+	push @phrases, "not(iprange(addr) <<= ?)";
 	push @values, '224.0.0.0/4';
     } elsif ($args{version} && $args{version} == 6) {
 	push @phrases, "family(addr) = ?";
 	push @values, 6;
-	push @phrases, "not(addr <<= ?)";
+	push @phrases, "not(iprange(addr) <<= ?)";
 	push @values, 'FF00::/8';
     } else {
-	push @phrases, "not(addr <<= ?)";
+	push @phrases, "not(iprange(addr) <<= ?)";
 	push @values, '224.0.0.0/4';
-	push @phrases, "not(addr <<= ?)";
+	push @phrases, "not(iprange(addr) <<= ?)";
 	push @values, 'FF00::/8';
     }
+
+    my $select = "select a.id from ipblock a,ipblockstatus s where " .
+	join(" AND ", @phrases);
+    my $statement = "id in ($select except $select and exists " .
+	"(select 1 from ipblock where iprange(a.addr) >> iprange(addr)))";
     return $class->retrieve_from_sql(
-	join(" AND ", @phrases) . " order by addr",
-	@values);
+	"$statement order by addr",
+	@values, @values);
 }
 
 
@@ -2861,8 +2864,8 @@ sub children {
     my $self = shift;
     $self->isa_object_method('children');
 
-    my $phrase = "ipblock_parent(id) = ? order by addr";
-    return ref($self)->retrieve_from_sql($phrase, $self->id);
+    my $phrase = "iprange(addr) << ? and ipblock_parent(id) = ? order by addr";
+    return ref($self)->retrieve_from_sql($phrase, $self->addr, $self->id);
 }
 
 
