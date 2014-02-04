@@ -2701,21 +2701,26 @@ sub get_addresses_by {
     unless ( exists $sort2field{$sort} ){
 	$self->throw_fatal("Ipblock::get_addresses_by: Invalid sort string");
     }
-    my $id = $self->id;
+    my @values = ($self->addr);
     my $query = "    
     SELECT    ipblock.id
     FROM      ipblockstatus, ipblock 
     LEFT JOIN (rraddr CROSS JOIN rr) ON (rraddr.ipblock=ipblock.id AND rraddr.rr=rr.id)
     LEFT JOIN entity ON (ipblock.used_by=entity.id)
-    WHERE     ipblock_parent(ipblock.id)=$id
+    WHERE     iprange(ipblock.addr) << ?
       AND     ipblock.status=ipblockstatus.id ";
+    if ($self->status->name ne "Subnet") {
+	# This can be expensive, and << above will do the same if $self is a Subnet
+    	$query .= "AND ipblock_parent(ipblock.id)=? ";
+	push @values, $self->id;
+    }
     if ( ($self->version == 6) && ($self->config->get('IPV6_HIDE_DISCOVERED')) ) {
-       $query.=" AND     ipblockstatus.name != \"Discovered\" ";
+       $query.=" AND     ipblockstatus.name != 'Discovered' ";
     }
     $query .= "ORDER BY  $sort2field{$sort}";
 
     my $dbh  = $self->db_Main();
-    my $rows = $dbh->selectall_arrayref($query);
+    my $rows = $dbh->selectall_arrayref($query, {}, @values);
     return map { Ipblock->retrieve($_->[0]) } @$rows;
 }
 
