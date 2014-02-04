@@ -210,14 +210,14 @@ sub search_like {
 	    my $o = $addr =~ tr/././;   $o++;
 	    $addr = join ".", $addr, ("0") x (4-$o);
 	    $addr .= "/" . (32-(4-$o)*8);
-	    $argv{'addr'} = { '<<=', $addr };
+	    $argv{'iprange(addr)'} = { '<<=', $addr };
 	    $argv{'masklen(addr)'} = { '=', $prefix } if $prefix;
 	} elsif ($addr =~ /^[\da-fA-F:]+$/) {
 	    # assume IPv6
 	    my $o = $addr =~ tr/:/:/;  $o++;
 	    $addr = join ":", $addr, ("0") x (8-$o);
 	    $addr .= "/" . (128-(8-$o)*16);
-	    $argv{'addr'} = { '<<=', $addr };
+	    $argv{'iprange(addr)'} = { '<<=', $addr };
 	    $argv{'masklen(addr)'} = { '=', $prefix } if $prefix;
 	} else {
 	    # normal "like" from text
@@ -723,7 +723,7 @@ sub get_covering_block {
     my $phrase = <<'EOF';
 id in (
  select id from ipblock
- where addr >>= ?
+ where iprange(addr) >>= ?
  order by masklen(addr) desc
  limit 1)
 EOF
@@ -1620,7 +1620,7 @@ sub get_ancestors {
 
     my %where;
 
-    $where{addr} = { '>>=', $self->addr };
+    $where{'iprange(addr)'} = { '>>=', $self->addr };
     $where{id}   = { '!=', $self->id };  # skip self from the resultset
 
     return ref($self)->search_where(\%where, { order_by => "addr DESC" });
@@ -1647,7 +1647,7 @@ sub get_descendants {
 
     my %where;
 
-    $where{addr} = { '<<=', $self->addr };
+    $where{'iprange(addr)'} = { '<<=', $self->addr };
     $where{id}   = { '!=', $self->id };  # skip self from the resultset
     if ($argv{no_addresses}) {
 	$where{'masklen(addr)'} = { '!=', $self->version == 4 ? 32 : 128 };
@@ -1745,7 +1745,7 @@ sub address_usage {
 	$q = $dbh->prepare_cached("SELECT masklen(ipblock.addr), family(ipblock.addr), ipblockstatus.name 
                                    FROM   ipblock, ipblockstatus 
                                    WHERE  ipblock.status=ipblockstatus.id 
-                                     AND  ? >>= addr");
+                                     AND  ? >>= iprange(addr)");
 	
 	$q->execute("".$self->netaddr);
     };
@@ -1880,7 +1880,7 @@ sub subnet_usage {
 	    FROM ipblock, ipblockstatus
 	    WHERE
 		ipblock.status=ipblockstatus.id AND
-		? >>= addr AND
+		? >>= iprange(addr) AND
 		NOT (family(addr) = 4 AND masklen(addr) = 32) AND
 		NOT (family(addr) = 6 AND masklen(addr) = 128) AND
 		(ipblockstatus.name = 'Reserved' OR
