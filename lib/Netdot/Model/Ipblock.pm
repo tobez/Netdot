@@ -995,6 +995,7 @@ sub get_maxed_out_subnets {
 	|| $self->throw_user("Ipblock::get_maxed_out_subnets: SUBNET_USAGE_MINPERCENT is not defined in config");
 
     my (@phrases, @values);
+    push @phrases, "is_network(addr)";
     push @phrases, "status in (
 	select id from ipblockstatus where name = 'Subnet')";
     if ($args{version}) {
@@ -1004,9 +1005,8 @@ sub get_maxed_out_subnets {
     # Ignore point-to-point subnets XXX but what about IPv6 point-to-point?
     push @phrases, "not (family(addr) = 4 and masklen(addr) >= 30)";
     my @subnets = $self->retrieve_from_sql(
-	join(" AND ", @phrases) . " order by addr",
+	join(" AND ", @phrases),
 	@values);
-
     my @result;
     for my $subnet (@subnets) {
 	my $total        = $subnet->num_addr;
@@ -1704,9 +1704,19 @@ sub num_children {
     $self->isa_object_method('num_children');
 
     my $dbh = $self->db_Main;
-    my ($num) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
-				      WHERE ipblock_parent(id)=?", {},
-				      $self->id);
+    my $num;
+    if ($self->status->name eq "Subnet") {
+	# DB optimization - subnet can only own addresses,
+	# so >> is enough to check for.
+	($num) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
+				       WHERE iprange(?) >> iprange(addr)", {},
+				       $self->addr);
+    } else {
+	($num) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
+				       WHERE iprange(?) >> iprange(addr)
+				       AND ipblock_parent(id)=?", {},
+				       $self->addr, $self->id);
+    }
     return $num;
 }
 
