@@ -58,7 +58,7 @@ if ( ref($error) =~ /Netdot::Util::Exception/ ){
       <a href="mailto:<% Netdot->config->get('ADMINEMAIL') %>"><% Netdot->config->get('ADMINEMAIL') %></a>
       </p>
 
-      <div id="stacktrace" style="display:none"><% $trace %></div>
+      <div id="stacktrace" style="display:none"><pre><% $trace %></pre></div>
 
 % }else{
       <p>
