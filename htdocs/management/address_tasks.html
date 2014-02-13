@@ -62,7 +62,7 @@ my $manager = $ui->get_permission_manager($r);
     </div>
     <div class="containerheadright">
 %   if ( $manager && $manager->can($user, 'access_admin_section', 'address_tasks:new') ){
-%        my @views = qw(search new tree);
+%        my @views = qw(search new);
 %        foreach my $v ( @views ){
 %	     next if $v eq $view;
 %		 my $arg = "&onload=focus-ipblock" if $v eq "new";
@@ -151,22 +151,6 @@ my $manager = $ui->get_permission_manager($r);
                 </p>
 		<p>
                 <input name="submit" value="Save" class="btn" type="submit">
-                </p>
-            </form>
-        </fieldset>
-%   }elsif ( $view eq 'tree' ){
-        <fieldset class="medium">
-            <legend>Rebuild IP tree</legend>
-            <form name="netdotform" action="ip.html" method="POST">
-	        <input type="hidden" name="_action" value="REBUILD_TREE">
-                <p>
-	        <label for="tree_version" >Tree Version:</label>
-	        <select name="tree_version">
-%	        foreach my $version ('4', '6', 'all'){
-		    <option value="<% $version %>"><% $version %></option>
-%               }
-                </select>
-                <input type="submit" name="submit" class="btn" value="Go">
                 </p>
             </form>
         </fieldset>
