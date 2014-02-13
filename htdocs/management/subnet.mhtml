@@ -120,17 +120,17 @@ Legend:
 
 <%perl>
 
-my $q = "SELECT   ipblock.id, ipblock.address, ipblock.description, ipblockstatus.name, 
+my $q = "SELECT   ipblock.id, host(ipblock.addr), ipblock.description, ipblockstatus.name, 
                   rr.name, device.id
          FROM     ipblockstatus, ipblock 
                   LEFT JOIN (rr CROSS JOIN rraddr) ON (ipblock.id=rraddr.ipblock AND rraddr.rr=rr.id)
                   LEFT JOIN (device CROSS JOIN interface) 
                     ON (ipblock.interface=interface.id AND interface.device=device.id)
-         WHERE    ipblock.parent=$id
+         WHERE    iprange(?) >>= iprange(ipblock.addr) AND ipblock_parent(ipblock.id)=?
            AND    ipblock.status=ipblockstatus.id
-         ORDER BY ipblock.address";
+         ORDER BY ipblock.addr";
 
-my $results = $dbh->selectall_arrayref($q);
+my $results = $dbh->selectall_arrayref($q, {}, $network->addr, $id);
 
 foreach my $r ( @$results ){
     my ( $ipid, $address, $description, $status, $dnsname, $device ) = @$r;
@@ -178,9 +178,9 @@ for( my $i=0; $i<($num/$cols); $i++ ) {
     for( my $j=0; $j<$cols; $j++ ) {
 	my $ip_addr     = $net->addr;
 	my $disp_addr   = $ip_addr;
-	my $status_name = $status{$net->numeric};
+	my $status_name = $status{$ip_addr};
 	my $divclass    = $classes{$status_name} || 'ipaddr_available';
-	my $divtitle    = $names{$net->numeric} || $net->addr;
+	my $divtitle    = $names{$ip_addr} || $ip_addr;
 	
 	# hide network octets
 	if ( $mask >= 24 ){
@@ -203,8 +203,8 @@ for( my $i=0; $i<($num/$cols); $i++ ) {
 	    $disp_addr = '<div class="ipaddr_disabled" title="Broadcast">'.$disp_addr.'</div>';
 
 	}else {
-	    my $used = (exists $used{$net->numeric})? 1 : 0;
-	    my $id = $ids{$net->numeric};
+	    my $used = (exists $used{$ip_addr})? 1 : 0;
+	    my $id = $ids{$ip_addr};
 	    $disp_addr = $make_cell->(
 		addr=>$ip_addr, disp_addr=>$disp_addr, divclass=>$divclass, divtitle=>$divtitle,
 		id=>$id, subnet_id=>$network->id, used=>$used,
