@@ -1714,6 +1714,7 @@ sub num_children {
     } else {
 	($num) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
 				       WHERE iprange(?) >> iprange(addr)
+				       AND is_network(addr)
 				       AND ipblock_parent(id)=?", {},
 				       $self->addr, $self->id);
     }
@@ -2882,8 +2883,19 @@ sub children {
     my $self = shift;
     $self->isa_object_method('children');
 
-    my $phrase = "iprange(addr) << ? and ipblock_parent(id) = ? order by addr";
-    return ref($self)->retrieve_from_sql($phrase, $self->addr, $self->id);
+    my @phrases;
+    my @bind;
+
+    push @phrases, "iprange(addr) << ?";
+    push @bind, $self->addr;
+
+    if ($self->status->name ne "Subnet") {
+	# something which is not a subnet only has networks as immediate children!
+	push @phrases, "and is_network(addr) and ipblock_parent(id) = ?";
+	push @bind, $self->id;
+    }
+    push @phrases, "order by addr";
+    return ref($self)->retrieve_from_sql("@phrases", @bind);
 }
 
 
