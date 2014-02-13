@@ -365,7 +365,7 @@ if( $_action eq "SHOW_ROOTS" && !$id && $rootversion ){
 	    }else{
 		$args{address} = $address;
 		$args{prefix}  = $prefix;
-		$args{parent}  = $add_block_parent if $add_block_parent;
+		delete $args{parent};
 		$block = Ipblock->insert(\%args);
 	    }
 	};
@@ -594,21 +594,6 @@ if( $_action eq "SHOW_ROOTS" && !$id && $rootversion ){
     }else{
 	$m->comp('.show_message', title=>"Action Message", msg=>"A or AAAA record added successfully");
     }
-    
-    
-
-#######################################################################################
-# REBUILD_TREE
-#
-#######################################################################################
-}elsif ( $_action eq 'REBUILD_TREE' ){
-
-    if ( $tree_version eq '4' || $tree_version eq 'all' ){
-	Ipblock->build_tree(4);
-    }elsif ( $tree_version eq '6' || $tree_version eq 'all' ){
-	Ipblock->build_tree(6);
-    }
-    $m->comp('.show_message', title=>"Action Message", msg=>"IP Tree Rebuilt Successfully");
 }
 #######################################################################################
 # View
@@ -692,7 +677,7 @@ if ( my @parents = $o->get_ancestors ){
 
 ################################################################
 # Address
-       my %addr_tmp = $ui->form_field(object=>$o, column=>"address", edit=>$edit_ip, 
+       my %addr_tmp = $ui->form_field(object=>$o, column=>"addr", edit=>$edit_ip, 
 				      htmlExtra=>"style='width: 15em'");
        push( @field_headers, $addr_tmp{'label'} );
        push( @cell_data, $addr_tmp{'value'} );
@@ -944,7 +929,7 @@ if ( $edit ){
 %################################################################
 <!-- Display ARP -->
 <%perl>
-# Get latest arp entries
+    # Get latest arp entries
     if ( my $arp = $o->get_last_n_arp($arp_limit) ){
         my @rows;
 	my %tstamps;
@@ -961,8 +946,8 @@ if ( $edit ){
 		push @rows, [$tstamp, $maclnk, (join ', ', @{$tstamps{$tstamp}{$macid}})];
 	    }
 	}
-       
 </%perl>
+
 <div class="container">
     <div class="containerheadleft"><strong>Last <% $arp_limit %> ARP entries</strong></div>
           <div class="containerheadright">
