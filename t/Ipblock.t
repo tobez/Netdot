@@ -88,15 +88,18 @@ is(scalar(@children), 1 + $reserved, "subnet now has interesting children");
 is($children[$reserved]->addr, $address->addr, "container.children.last = address");
 
 my $desc = $container->get_descendants;
+dump_results($desc, "container.get_descendants()");
 is(scalar @$desc, 2+$reserved, "container.get_descendants: correct count");
 is($desc->[0], $subnet, "container.get_descendants: includes subnet");
 is($desc->[-1], $address, "container.get_descendants: includes address");
 
 $desc = $subnet->get_descendants;
+dump_results($desc, "subnet.get_descendants()");
 is(scalar @$desc, 1+$reserved, "subnet.get_descendants: correct count");
 is($desc->[-1], $address, "subnet.get_descendants: includes address");
 
 $desc = $container->get_descendants(no_addresses => 1);
+dump_results($desc, "container.get_descendants(no addresses)");
 is(scalar @$desc, 1, "container.get_descendants(no addresses): correct count");
 is($desc->[0], $subnet, "container.get_descendants(no addresses): includes subnet");
 
@@ -916,3 +919,15 @@ isa_ok($container, 'Class::DBI::Object::Has::Been::Deleted', 'delete');
 } # and then repeat everything again with a different SUBNET_AUTO_RESERVE value
 
 done_testing();
+
+sub dump_results
+{
+	my ($r, $name) = @_;
+
+	return unless $ENV{TEST_DEBUG};
+	print STDERR "# $name results: ", scalar(@$r), " entries\n";
+	for my $d (@$r) {
+		print STDERR "#    ", $d->id, " = ", $d->addr, ", status ", $d->status->name, "\n";
+	}
+}
+
