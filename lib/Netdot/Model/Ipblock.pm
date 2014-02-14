@@ -1645,15 +1645,17 @@ sub get_descendants {
     my ($self, %argv) = @_;
     $self->isa_object_method('get_descendants');
 
-    my %where;
+    my @phrases;
+    my @bind;
 
-    $where{'iprange(addr)'} = { '<<=', $self->addr };
-    $where{id}   = { '!=', $self->id };  # skip self from the resultset
+    push @phrases, "iprange(addr) << ?";
+    push @bind, $self->addr;
+
     if ($argv{no_addresses}) {
-	$where{'is_network(addr)'} = { '!=', 't' };
+	push @phrases, "and is_network(addr)";
     }
-
-    return [ref($self)->search_where(\%where, { order_by => "addr" })];
+    push @phrases, "order by addr";
+    return [ref($self)->retrieve_from_sql("@phrases", @bind)];
 }
 
 ##################################################################
