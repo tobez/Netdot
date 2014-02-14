@@ -1650,7 +1650,7 @@ sub get_descendants {
     $where{'iprange(addr)'} = { '<<=', $self->addr };
     $where{id}   = { '!=', $self->id };  # skip self from the resultset
     if ($argv{no_addresses}) {
-	$where{'masklen(addr)'} = { '!=', $self->version == 4 ? 32 : 128 };
+	$where{'is_network(addr)'} = { '!=', 't' };
     }
 
     return [ref($self)->search_where(\%where, { order_by => "addr" })];
@@ -1735,33 +1735,22 @@ sub num_children {
 
 =cut
 
+our $available_status;
+
 sub address_usage {
     my ($self) = @_;
     $self->isa_object_method('address_usage');
 
-    my $count  = 0;
-    my $q;
-    my $dbh = $self->db_Main;
-    eval {
-	$q = $dbh->prepare_cached("SELECT masklen(ipblock.addr), family(ipblock.addr), ipblockstatus.name 
-                                   FROM   ipblock, ipblockstatus 
-                                   WHERE  ipblock.status=ipblockstatus.id 
-                                     AND  ? >>= iprange(addr)");
-	
-	$q->execute("".$self->netaddr);
-    };
-    if ( my $e = $@ ){
-	$self->throw_fatal( $e );
-    }
-    
-    while ( my ($prefix, $version, $status) = $q->fetchrow_array() ) {
-        if( ( $version == 4 && $prefix == 32 ) || ( $version == 6 && $prefix == 128 ) ) {
-	    next if $status eq 'Available';
-            $count++;
-        }
-    }
+    $available_status ||= IpblockStatus->search(name=>'Available')->first->id;
 
-    return $count;
+    my $dbh = $self->db_Main;
+    my ($n_descendants) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
+	WHERE iprange(?) >> iprange(addr) AND
+	NOT is_network(addr)", {}, $self->addr);
+    my ($n_available) = $dbh->selectrow_array("SELECT COUNT(id) FROM ipblock
+	WHERE iprange(?) >> iprange(addr) AND
+	NOT is_network(addr) AND status = ?", {}, $self->addr, $available_status);
+    return $n_descendants - $n_available;
 }
 
 ##################################################################
@@ -1882,8 +1871,7 @@ sub subnet_usage {
 	    WHERE
 		ipblock.status=ipblockstatus.id AND
 		? >>= iprange(addr) AND
-		NOT (family(addr) = 4 AND masklen(addr) = 32) AND
-		NOT (family(addr) = 6 AND masklen(addr) = 128) AND
+		is_network(addr) AND
 		(ipblockstatus.name = 'Reserved' OR
 		 ipblockstatus.name = 'Subnet')
 	");
