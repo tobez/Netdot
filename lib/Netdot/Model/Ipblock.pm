@@ -753,28 +753,24 @@ sub get_roots {
     $class->isa_class_method('get_roots');
 
     $version ||= 4;
-   
-    my %where = (
-	'is_network(addr)' => 1,
-	'ipblock_parent(id)' => undef
-    );
-    my %opts  = (order_by => 'addr');
-    
-    my $len;
-    my @ipb;
-    if ( $version eq '4' || $version eq 'all' ){
-	$len = 32;
-	$where{'family(addr)'} = 4;
-	$where{'masklen(addr)'} = { '!=', $len };
-	push @ipb, $class->search_where(\%where, \%opts);
+
+    my @phrases;
+
+    push @phrases, "is_network(addr)";
+    push @phrases, "ipblock_parent(id) is null";
+
+    if ( $version eq '4' ){
+	push @phrases, "family(addr) = 4";
+    } elsif ( $version eq '6' ){
+	push @phrases, "family(addr) = 6";
     }
-    if ( $version eq '6' || $version eq 'all' ){
-	$len = 128;
-	$where{'family(addr)'} = 6;
-	$where{'masklen(addr)'} = { '!=', $len };
-	push @ipb, $class->search_where(\%where, \%opts);
+    if (wantarray) {
+	return $class->retrieve_from_sql(
+	    join(" AND ", @phrases) . " order by addr");
     }
-    wantarray ? ( @ipb ) : $ipb[0]; 
+    my ($ipb) = $class->retrieve_from_sql(
+	    join(" AND ", @phrases) . " order by addr limit 1");
+    return $ipb;
 }
 
 ##################################################################
