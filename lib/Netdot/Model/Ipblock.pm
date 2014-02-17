@@ -2879,7 +2879,8 @@ sub children {
     push @phrases, "iprange(addr) << ?";
     push @bind, $self->addr;
 
-    if ($self->status->name ne "Subnet") {
+    my $statusname = $self->status->name;
+    if ($statusname ne "Subnet" && $statusname ne "Reserved") {
 	# something which is not a subnet only has networks as immediate children!
 	push @phrases, "and is_network(addr) and ipblock_parent(id) = ?";
 	push @bind, $self->id;
@@ -2955,7 +2956,7 @@ sub _validate {
     my ($self, $args) = @_;
     $self->isa_object_method('_validate');
     $logger->debug(sub{"Ipblock::_validate: Checking " . $self->get_label });
-		   
+
     my $statusname = $self->status->name || "unknown";
     $logger->debug("Ipblock::_validate: " . $self->get_label . " has status: $statusname");
 

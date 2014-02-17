@@ -869,6 +869,11 @@ like(exception {
 	status  => 'Subnet',
     });
 }, qr/block allocations only allowed under container blocks/i, "insert subnet into a subnet");
+
+dump_results([$subnet2], "subnet2 before fail");
+my @ccc = $subnet2->children;
+dump_results([@ccc], "subnet2's kids before fail");
+
 like(exception {
     $subnet2->update({ status => "Reserved"});
 }, qr/reserved blocks can't contain other blocks/i, "trying to convert a subnet with kids to a reserved block");
