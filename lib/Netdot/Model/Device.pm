@@ -6095,7 +6095,7 @@ sub _update_interfaces {
 
 	# Remove the new interface's ip addresses from list to delete
 	foreach my $newaddr ( keys %{$info->{interface}->{$newif}->{ips}} ){
-	    delete $old_ips{Ipblock->netaddr($newaddr)->ip};
+	    delete $old_ips{Ipblock->netaddr(address => $newaddr)->ip};
 	}
 
 	my $newname   = $info->{interface}->{$newif}->{name};
