@@ -2680,6 +2680,7 @@ sub get_addresses_by {
     $sort ||= 'Address';
     my %sort2field = ('Address'     => 'ipblock.addr',
 		      'Name'        => 'rr.name',
+		      'Device'      => 'dr.name, interface.id, ipblock.addr',
 		      'Status'      => 'ipblockstatus.name',
 		      'Used by'     => 'entity.name',
 		      'Description' => 'ipblock.description',
@@ -2694,6 +2695,8 @@ sub get_addresses_by {
     FROM      ipblockstatus, ipblock 
     LEFT JOIN (rraddr CROSS JOIN rr) ON (rraddr.ipblock=ipblock.id AND rraddr.rr=rr.id)
     LEFT JOIN entity ON (ipblock.used_by=entity.id)
+    LEFT JOIN (interface CROSS JOIN device CROSS JOIN rr dr)
+    	ON (ipblock.interface=interface.id AND interface.device=device.id AND device.name=dr.id)
     WHERE     iprange(ipblock.addr) << ?
       AND     ipblock.status=ipblockstatus.id ";
     if ( ($self->version == 6) && ($self->config->get('IPV6_HIDE_DISCOVERED')) ) {

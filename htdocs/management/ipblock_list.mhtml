@@ -112,13 +112,6 @@ if ( $type eq "address" ){
         push( @$page, \@text_row);
     }
 
-    # Special case: sort by device name
-    # We use the infamous Shwartzian transform because we have added the device names 
-    # in the previous section, so we can't ask the caller to return a sorted list
-    if ( $sort eq 'Device' ){
-	@rows = map { $_->[0] } sort { $a->[1] cmp $b->[1] } map { [ $_, $_->[2] =~ />(\S+)<\/a>/ ] } @rows;
-    }
-
 } elsif( $type eq "block" ) {
 
     $show_utilization = 0 if $edit;
