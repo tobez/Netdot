@@ -2704,9 +2704,39 @@ sub get_addresses_by {
     }
     $query .= "ORDER BY  $sort2field{$sort}";
 
+    # The following is the fastest way I know to convert raw data from the DB
+    # into an array of Ipblock objects.  This code uses knowledge about internal
+    # representation of Class::DBI objects.
     my $dbh  = $self->db_Main();
     my $sth = $dbh->prepare_cached($query);
-    return Ipblock->sth_to_objects($sth, [$self->addr]);
+    $sth->execute($self->addr);
+    my $ipbs = $sth->fetchall_arrayref({});
+
+    my %links = (
+    	asn       => "ASN",
+	interface => "Interface",
+	owner     => "Entity",
+	status    => "IpblockStatus",
+	used_by   => "Entity",
+	vlan      => "Vlan",
+    );
+    my @links = qw(asn interface owner status used_by vlan);
+    my %linked_objects;
+
+    for my $ipb (@$ipbs) {
+	for my $link_field (@links) {
+	    if ( my $id = $ipb->{$link_field} ) {
+		$ipb->{$link_field} = $linked_objects{$link_field}{$id} ||=
+		    bless({ id => $id }, "Netdot::Model::$links{$link_field}");
+		push @{$ipb->{_class_trigger_results}}, [$ipb->{$link_field}];
+	    } else {
+		push @{$ipb->{_class_trigger_results}}, [];
+	    }
+	}
+	$ipb->{__triggers} = {};
+	bless($ipb, "Ipblock");
+    }
+    return @$ipbs;
 }
 
 ##################################################################
