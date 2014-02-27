@@ -1436,6 +1436,13 @@ sub update {
 
     my $recursive = delete $argv->{recursive};
 
+    # Try to handle both addr and address/prefix as parameters
+    if ($argv->{addr}) {
+	my ($addr, $pref) = split /\//, delete $argv->{addr};
+	$argv->{address} = $addr;
+	$argv->{prefix} = $pref if $pref;
+    }
+
     # We need at least these args before proceeding
     # If not passed, use current values
     $argv->{status} ||= $self->status;
