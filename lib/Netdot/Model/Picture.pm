@@ -57,15 +57,13 @@ sub insert {
 }
 
 #################################################
-# Add some triggers
+# Handle PostgreSQL's bytea types correctly. 
 #
-# Handle PostgreSQL's bytea types correctly.
-#
+
 if (__PACKAGE__->config->get('DB_TYPE') eq 'Pg') {
     require DBD::Pg;
     __PACKAGE__->data_type(bindata => { pg_type => &DBD::Pg::PG_BYTEA });
 }
-
 
 =head1 AUTHOR
 
