@@ -328,6 +328,11 @@ sub upg_105_106 {
     if ( $dbms eq 'mysql' ) {
 	die "Convert from mysql to PostgreSQL first\n";
     } elsif ( $dbms eq 'Pg') {
+	my $test_ip = "192.168.42.0";
+	my ($tested_ip) = $dbh->selectrow_array("SELECT iprange($test_ip)");
+	unless ($tested_ip && $tested_ip eq $test_ip) {
+	    die "Install ip4r (http://pgfoundry.org/projects/ip4r) version 2.0 or later first\n";
+	}
 	change_numeric_ip_to_cidr();
     } else {
 	die "Unsupported DBMS: $dbms\n";
@@ -403,5 +408,7 @@ returns bool as $$
  end
 $$ language SQL immutable;
 EOF
+    push @statements, "create index ipblock_is_network_idx on ipblock using btree (is_network(addr));";
+    push @statements, "create index ipblock_addr_gist_idx on ipblock using gist (iprange(addr));";
 }
 
