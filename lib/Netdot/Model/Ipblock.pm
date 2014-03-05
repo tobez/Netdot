@@ -2685,13 +2685,13 @@ sub get_addresses_by {
 	unless ( $self->status && $self->status->name eq 'Subnet' );
     
     $sort ||= 'Address';
-    my %sort2field = ('Address'     => 'ipblock.addr',
-		      'Name'        => 'rr.name',
-		      'Device'      => 'dr.name, interface.id, ipblock.addr',
-		      'Status'      => 'ipblockstatus.name',
-		      'Used by'     => 'entity.name',
-		      'Description' => 'ipblock.description',
-		      'Last Seen'   => 'ipblock.last_seen',
+    my %sort2field = ('Address'     => 'iprange(ipblock.addr)',
+		      'Name'        => 'rr.name, iprange(ipblock.addr)',
+		      'Device'      => 'dr.name, interface.id, iprange(ipblock.addr)',
+		      'Status'      => 'ipblockstatus.name, iprange(ipblock.addr)',
+		      'Used by'     => 'entity.name, iprange(ipblock.addr)',
+		      'Description' => 'ipblock.description, iprange(ipblock.addr)',
+		      'Last Seen'   => 'ipblock.last_seen, iprange(ipblock.addr)',
 	);
     unless ( exists $sort2field{$sort} ){
 	$self->throw_fatal("Ipblock::get_addresses_by: Invalid sort string");
