@@ -39,7 +39,9 @@ $edit              => undef
 $edit_children     => undef
 $editattr          => undef
 $submit            => undef
-$rootversion       => 4 
+$offset            => undef
+$per_page          => undef
+$rootversion       => "all"
 $view_format       => Netdot->config->get('DEFAULT_IPBLOCK_VIEW')
 $rowsize           => Netdot->config->get('DEFAULT_IPBLOCK_ROWSIZE')
 $dividefreespace   => 'max'
@@ -78,7 +80,20 @@ my $added_block = 0;
 my $covering_block;
 my $BLOCK_VIEW_MAX;
 
-print '%ARGS is  <pre>', Dumper(%ARGS), '</pre><br>' if $DEBUG;
+print '%ARGS is  <pre>', Dumper(\%ARGS), '</pre><br>' if $DEBUG;
+
+my $user_per_page = $user->getAttribute("USER_PERPAGE");
+if ( !defined($per_page) ){
+    $per_page = $ui->config->get('DEFAULT_PERPAGE');
+    
+    #per user per_page preference takes precedence over global pref
+    if ( $user_per_page =~ /\d+/ && ($per_page != $user_per_page) ) {
+	$per_page = $user_per_page;
+    }
+} else {
+    #set the new one
+    $user->setAttribute($r, "USER_PERPAGE", $per_page);
+}
 
 my $manager = $ui->get_permission_manager($r);
 
@@ -163,10 +178,16 @@ if( $_action eq "SHOW_ROOTS" && !$id && $rootversion ){
     my $get_roots = $ui->config->get('SHOW_ROOT_BLOCKS');
     if ( $get_roots ){
         @list = Ipblock->get_roots($rootversion);
-        my $max = $ui->config->get('ROOT_BLOCK_SHOW_MAX');
+	my $total_count = @list;
+	if (defined $offset) {
+	    splice @list, 0, $offset;
+	}
+	if (@list > $per_page) {
+	    splice @list, $per_page;
+	}
 </%perl>
        <div class="container">
-          <div class="containerheadleft">Root Blocks: (<% scalar(@list) %>)</div>
+          <div class="containerheadleft">Root Blocks: (<% $total_count %>)</div>
           <div class="containerheadright">
 	    <form name="netdotform" action="ip.html" method="POST">
 	      <input type="hidden" name="_action" value="SHOW_ROOTS">
@@ -184,11 +205,8 @@ if( $_action eq "SHOW_ROOTS" && !$id && $rootversion ){
             </form>
 	  </div>
           <div class="containerbody">
-%             if ( @list && scalar(@list) < $max ){
-                  <& ipblock_list.mhtml, parent=>0, objects=>\@list, type=>"block", show_utilization=>$show_ch_util &>
-%             }else{
-                  The number of root blocks exceeds the configured threshold (<% $max %>). Please use the search boxes.
-%             }
+              <& ipblock_list.mhtml, parent=>0, objects=>\@list, type=>"block", show_utilization=>$show_ch_util,
+		total_count => $total_count, offset => $offset, per_page => $per_page &>
           </div>
        </div>
 <%perl>
@@ -1775,11 +1793,18 @@ if ( $_action eq 'VIEW_ADD_RIGHTS' ){
 %     }  
 <%perl>
 } elsif ( $view_format eq 'list' ) {  
+    my $total_count = $o->num_children;
     my @children;
     if ( $o->status->name eq 'Subnet'){
-	@children = $o->get_addresses_by($ip_list_sort);
+	@children = $o->get_addresses_by($ip_list_sort, offset => $offset, limit => $per_page);
     }else{
 	@children = $o->children;
+	if (defined $offset) {
+	    splice @children, 0, $offset;
+	}
+	if (@children > $per_page) {
+	    splice @children, $per_page;
+	}
     }
 
 </%perl>
@@ -1822,7 +1847,8 @@ if ( $_action eq 'VIEW_ADD_RIGHTS' ){
           </div>
           <div class="containerbody">
 %         if ( @children ){ 
-              <& ipblock_list.mhtml, parent=>$o, objects=>\@children, edit=>$edit_children, sort=>$ip_list_sort &>
+              <& ipblock_list.mhtml, parent=>$o, objects=>\@children, edit=>$edit_children, sort=>$ip_list_sort,
+		 total_count => $total_count, offset => $offset, per_page => $per_page &>
 %         }
 %	  if ( $edit_children ){
                   <input type="button" value="Check All" onclick="setCheckbox('edit_children', '', true);return false;" class="button" />

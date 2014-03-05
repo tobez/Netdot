@@ -2679,7 +2679,7 @@ sub get_next_free {
 =cut
 
 sub get_addresses_by {
-    my ($self, $sort) = @_;
+    my ($self, $sort, %p) = @_;
     $self->isa_object_method('get_addresses_by');
     $self->throw_fatal("Ipblock::get_addresses_by: Invalid call to this method for a non-subnet")
 	unless ( $self->status && $self->status->name eq 'Subnet' );
@@ -2709,7 +2709,9 @@ sub get_addresses_by {
     if ( ($self->version == 6) && ($self->config->get('IPV6_HIDE_DISCOVERED')) ) {
        $query.=" AND     ipblockstatus.name != 'Discovered' ";
     }
-    $query .= "ORDER BY  $sort2field{$sort}";
+    $query .= "ORDER BY $sort2field{$sort} ";
+    $query .= "LIMIT $p{limit}" if $p{limit};
+    $query .= "OFFSET $p{offset}" if $p{offset};
 
     # The following is the fastest way I know to convert raw data from the DB
     # into an array of Ipblock objects.  This code uses knowledge about internal
