@@ -5056,9 +5056,9 @@ $meta = {
 
   },
     description => 'An IP (v4 or v6) CIDR block, which can represent both individual addresses and blocks of addresses (subnets, etc).',
-    index => [ ['status'], ['first_seen'], ['last_seen'], ['interface'], ['vlan'] ],
-#push @statements, "create index ipblock_is_network_idx on ipblock using btree (is_network(addr));";
-#push @statements, "create index ipblock_addr_gist_idx on ipblock using gist (iprange(addr));";
+    index => [ ['status'], ['first_seen'], ['last_seen'], ['interface'], ['vlan'],
+	['is_network(addr)'], ['iprange(addr)']
+    ],
     isjoin => '0',
     label => [
       'address',

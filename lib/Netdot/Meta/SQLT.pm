@@ -74,6 +74,9 @@ sub sql_schema {
 	# Bug in SQLT
 	# https://rt.cpan.org/Public/Bug/Display.html?id=58420
 	$output =~ s/serial NOT NULL/bigserial NOT NULL/smg;
+
+	# SQLT does not support PostgreSQL spatial (gist) indexes
+	$output =~ s/\b(on\s+ipblock\s*)(\(\s*iprange\(addr\)\))/$1 using gist $2/gi;
     }
 
     for my $procedure ( @procedures ) {
@@ -222,7 +225,7 @@ sub _parser{
 	# Add normal indexes
 	foreach my $index ( @{$mtable->get_indexed_columns} ){
 	    $icount++;
-	    $table->add_index(name   => $mtable->name.$icount,
+	    $table->add_index(name   => $table->name.$icount,
 			      fields => $index,
 			      type   => 'NORMAL',
 			      );
