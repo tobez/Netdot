@@ -142,3 +142,6 @@ sub Replace {
 	}
 	return $sSource;
 }
+
+1;
+# vim: set ts=8:

@@ -25,9 +25,6 @@ In the apache configuration:
 
 =cut
 
-# Make sure to return true
-1;
-
 =head2 login - Wraps Apache2::SiteControl::login
 
 Tweaks the environment to overcome deficiencies in the
@@ -72,3 +69,6 @@ sub login {
     $self->SUPER::login($r);
 
 }
+
+1;
+# vim: set ts=8:

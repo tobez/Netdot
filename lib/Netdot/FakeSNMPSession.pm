@@ -174,3 +174,4 @@ sub bulkwalk
 }
 
 1;
+# vim: set ts=8:
