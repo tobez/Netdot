@@ -77,7 +77,7 @@ sub sql_schema {
 	$output =~ s/serial NOT NULL/bigserial NOT NULL/smg;
 
 	# SQLT does not support PostgreSQL spatial (gist) indexes
-	$output =~ s/\b(on\s+"?ipblock"?\s*)(\(\s*iprange\(addr\)\))/$1 using gist $2/gi;
+	$output =~ s/\b(on\s+"?ipblock"?)\s*(\(\s*iprange\(addr\)\))/$1 using gist $2/gi;
     }
 
     for my $procedure ( @procedures ) {
