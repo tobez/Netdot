@@ -8619,7 +8619,7 @@ $meta = {
     } 
   }, 
  },
-'pre-procedures' => {	# processed before "tables"
+'procedures' => {
     is_network => {
 	name       => 'ipblock_parent',
 	sql        => <<'EOF',
@@ -8637,10 +8637,9 @@ returns bool as $$
  end
 $$ language SQL immutable;
 EOF
-	parameters => 'bigint',
+	parameters => 'inet',
+	order      => -1,	# procs with negative order are created before the tables
     },
- },
-'post-procedures' => {	# processed after "tables"
     ipblock_parent => {
 	name       => 'ipblock_parent',
 	sql        => <<'EOF',
@@ -8660,6 +8659,7 @@ returns bigint as $$
 $$ language SQL stable;
 EOF
 	parameters => 'bigint',
+	order      => 99,
     },
  },
 }

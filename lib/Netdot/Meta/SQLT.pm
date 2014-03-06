@@ -57,18 +57,31 @@ sub sql_schema {
     my ($self, $type) = @_;
     $t->parser( sub{ return $self->_parser(@_) } ) or croak $t->error;
     $t->producer($type) or croak $t->error;
-    my $output = $t->translate() or croak $t->error;
+    my $output = "";
+
+    # Hack in support for PostgreSQL functions, since
+    # standard Producer::PostgreSQL does not do that at all.
+    my @procedures = $t->schema->get_procedures();
+
+    for my $procedure ( @procedures ) {
+	next unless $procedure->order && $procedure->order < 0;
+	$output .= $procedure->sql();
+	$output .= "\n\n";
+    }
+
+    $output .= $t->translate() or croak $t->error;
     if ( $type eq 'PostgreSQL' ){
 	# Bug in SQLT
 	# https://rt.cpan.org/Public/Bug/Display.html?id=58420
 	$output =~ s/serial NOT NULL/bigserial NOT NULL/smg;
     }
-    # Hack in support for PostgreSQL functions, since
-    # standard Producer::PostgreSQL does not do that at all.
-    for my $procedure ( $t->schema->get_procedures ) {
+
+    for my $procedure ( @procedures ) {
+	next if $procedure->order && $procedure->order < 0;
 	$output .= "\n\n";
 	$output .= $procedure->sql();
     }
+
     return $output;
 }
 
