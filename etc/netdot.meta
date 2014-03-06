@@ -8621,7 +8621,7 @@ $meta = {
  },
 'procedures' => {
     is_network => {
-	name       => 'ipblock_parent',
+	name       => 'is_network',
 	sql        => <<'EOF',
 create or replace
 function is_network(inet)
@@ -8638,7 +8638,6 @@ returns bool as $$
 $$ language SQL immutable;
 EOF
 	parameters => 'inet',
-	order      => -1,	# procs with negative order are created before the tables
     },
     ipblock_parent => {
 	name       => 'ipblock_parent',
@@ -8659,7 +8658,6 @@ returns bigint as $$
 $$ language SQL stable;
 EOF
 	parameters => 'bigint',
-	order      => 99,
     },
  },
 }

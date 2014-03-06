@@ -57,35 +57,36 @@ sub sql_schema {
     my ($self, $type) = @_;
     $t->parser( sub{ return $self->_parser(@_) } ) or croak $t->error;
     $t->producer($type) or croak $t->error;
-    my $output = "";
+    my $output = $t->translate() or croak $t->error;
+    my $preamble = "";
 
     # Hack in support for PostgreSQL functions, since
     # standard Producer::PostgreSQL does not do that at all.
     my @procedures = $t->schema->get_procedures();
+    my %pre_proc = map { $_ => 1 } qw(is_network);
 
     for my $procedure ( @procedures ) {
-	next unless $procedure->order && $procedure->order < 0;
-	$output .= $procedure->sql();
-	$output .= "\n\n";
+	next unless $pre_proc{$procedure->name};
+	$preamble .= $procedure->sql();
+	$preamble .= "\n\n";
     }
 
-    $output .= $t->translate() or croak $t->error;
     if ( $type eq 'PostgreSQL' ){
 	# Bug in SQLT
 	# https://rt.cpan.org/Public/Bug/Display.html?id=58420
 	$output =~ s/serial NOT NULL/bigserial NOT NULL/smg;
 
 	# SQLT does not support PostgreSQL spatial (gist) indexes
-	$output =~ s/\b(on\s+ipblock\s*)(\(\s*iprange\(addr\)\))/$1 using gist $2/gi;
+	$output =~ s/\b(on\s+"?ipblock"?\s*)(\(\s*iprange\(addr\)\))/$1 using gist $2/gi;
     }
 
     for my $procedure ( @procedures ) {
-	next if $procedure->order && $procedure->order < 0;
+	next if $pre_proc{$procedure->name};
 	$output .= "\n\n";
 	$output .= $procedure->sql();
     }
 
-    return $output;
+    return "$preamble$output";
 }
 
 #####################################################################
