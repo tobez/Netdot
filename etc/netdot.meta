@@ -35,7 +35,6 @@
 #	          The SQL data type of this column
 #      },
 #    description => 'Table1 blah blah blah', # Description for this table
-#    has_history => 0,  # Deprecated
 #    index => [],       # Columns that should be indexed by the DBMS
 #    isjoin => '0',     # Is this table a join table?
 #
@@ -101,7 +100,6 @@ $meta = {
       },
     },
     description => 'Acess rights for Netdot authorization.  Rights are tied to individual users (Person objects) or groups (Contact List objects)',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [ 'access', 'object_class', 'object_id' ],
@@ -197,7 +195,6 @@ $meta = {
       },
     },
     description => 'Audit Table to record database operations made by users',
-    has_history => 0,
     index => [ ['tstamp'], ['username'], ['tablename'], ['label'] ],
     isjoin => '0',
     label => [ 'tstamp', 'username', 'label' ],
@@ -258,7 +255,6 @@ $meta = {
       }
     },
     description => 'Device ARP Cache',
-    has_history => 0,
     index => [ ['device'], ['tstamp'] ],
     isjoin => '0',
     label => [
@@ -343,7 +339,6 @@ $meta = {
       }
     },
     description => 'ARP Cache Entry',
-    has_history => 0,
     index => [ ['arpcache'], ['interface'], ['physaddr'], ['ipaddr'] ],
     isjoin => '0',
     label => [
@@ -412,7 +407,6 @@ $meta = {
       },
     },
     description => 'Autonomous System Number',
-    has_history => 0,
     index => [ ['rir'] ],
     isjoin => '0',
     label => ['number'],
@@ -582,7 +576,6 @@ $meta = {
       brief => ['serial_number', 'physaddr', 'product_id', 'inventory_number', 'maint_from', 'maint_until', 'reserved_for' ],
     },
     description => 'Assets represent network hardware (devices or modules). If an asset is installed, it will be associated with a device or devicemodule object.',
-    has_history => 0,
     index => [ ['serial_number'], ['inventory_number'], ['po_number'] ],
     isjoin => '0',
     primary_key => 'id',
@@ -618,7 +611,6 @@ $meta = {
       }
     },
     description => 'A Time Period',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -772,7 +764,6 @@ $meta = {
       },
     },
     description => 'A BGP Peering',
-    has_history => 0,
     index => [
       [
         'bgppeerid'
@@ -910,7 +901,6 @@ $meta = {
       }
     },
     description => 'A Backbone cable that interconnects two sites.  Backbone cables can have multiple strands.',
-    has_history => 0,
     index => [
       [
         'name'
@@ -1047,7 +1037,6 @@ $meta = {
       }
     },
     description => 'A single cable strand/pair',
-    has_history => 0,
     index => [
       [
         'cable'
@@ -1120,7 +1109,6 @@ $meta = {
       }
     },
     description => 'Types of Cables',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1255,7 +1243,6 @@ $meta = {
       }
     },
     description => 'A circuit can either be a WAN link provided by an external entity, or a set of [spliced] backbone cable strands terminated into two device interfaces',
-    has_history => 0,
     index => [
       [
         'linkid'
@@ -1323,7 +1310,6 @@ $meta = {
       }
     },
     description => 'Circuit status',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1374,7 +1360,6 @@ $meta = {
       }
     },
     description => 'Circuit Type',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1574,7 +1559,6 @@ $meta = {
       }
     },
     description => 'A Communications Closet.  A Closet is different from a normal Room in two ways: a) Backbone Cables (inter and intra building) terminate in Closets.  b) Horizontal Cables _start_ in Closets and _end_ in Rooms',
-    has_history => 0,
     index => [ [ 'room' ] ],
     isjoin => '0',
     label => [ 'name', 'room' ],
@@ -1677,7 +1661,6 @@ $meta = {
       }
     },
     description => 'A Link between two Sites.  A Site Link can consist of one or more circuits',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1812,7 +1795,6 @@ $meta = {
       }
     },
     description => 'A Contact object is basically a Role of a certain Person.  People can be associated with one or more resources (devices, services, etc) for which they could be contacted.  Each Contact object represents one of these roles.',
-    has_history => 0,
     index => [
       [
         'contactlist'
@@ -1875,7 +1857,6 @@ $meta = {
       }
     },
     description => 'A list of contacts',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1927,7 +1908,6 @@ $meta = {
       }
     },
     description => 'Type of contact',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -1986,7 +1966,6 @@ $meta = {
       }
     },
     description => 'Cached data',
-    has_history => 0,
     unique => [ ['name'] ],
     label => [ 'name' ],
     index => [ ],
@@ -2560,7 +2539,6 @@ $meta = {
       }
     },
     description => 'A network device.  Particularly, Devices in Netdot are network infrastructure devices that network administrators care about for inventory, monitoring and management purposes.  Not to be confused with end nodes',
-    has_history => 0,
     index => [ ['used_by'], ['owner'], ['os'], ['sysname'], ['down_from'], ['down_until'], ['extension'] ],
     isjoin => '0',
     label => [
@@ -2683,7 +2661,6 @@ $meta = {
       }
     },
     description => 'A Device Attribute',
-    has_history => 0,
     index => [
       [
         'device'
@@ -2739,7 +2716,6 @@ $meta = {
       }
     },
     description => 'A Device Attributes Name',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -2913,7 +2889,6 @@ $meta = {
       }
     },
     description => 'A Device Physical Entity',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [ 'name', 'model', 'device' ],
@@ -2987,7 +2962,6 @@ $meta = {
       }
     },
     description => 'Device to Contactlist join table',
-    has_history => 0,
     index => [],
     isjoin => '1',
     label => [
@@ -3058,7 +3032,6 @@ $meta = {
       }
     },
     description => 'A DHCP Attribute or Parameter',
-    has_history => 0,
     index => [
       [
         'scope'
@@ -3129,7 +3102,6 @@ $meta = {
       }
     },
     description => 'A DHCP Attributes Name',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -3282,7 +3254,6 @@ $meta = {
       },
     },
     description => 'A DHCP Scope',
-    has_history => 0,
     index => [ ['ipblock'], ['type' ], ['physaddr'] ],
     isjoin => '0',
     label => [
@@ -3416,7 +3387,6 @@ $meta = {
       },
     },
     description => 'Relationship between a scopes and scope templates',
-    has_history => 0,
     index => [ ['template'] ],
     isjoin => '1',
     label => [ 'scope', 'template' ],
@@ -3456,7 +3426,6 @@ $meta = {
       }
     },
     description => 'A DHCP Scope Type',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -3597,7 +3566,6 @@ $meta = {
       },
     },
     description => 'An organization related to the network in some way',
-    has_history => 0,
     index => [ ['asname'], ['asnumber'] ],
     isjoin => '0',
     label => [ 'name' ],
@@ -3695,7 +3663,6 @@ $meta = {
       },
     },
     description => 'An Entity might play different roles.  For example, the same Entity can be both a Customer and a Peer.',
-    has_history => 0,
     index => [ ],
     isjoin => '1',
     label => [
@@ -3757,7 +3724,6 @@ $meta = {
       }
     },
     description => 'Entity to Site join table',
-    has_history => 0,
     index => [],
     isjoin => '1',
     label => [
@@ -3811,7 +3777,6 @@ $meta = {
       }
     },
     description => 'Types of Entities',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -3868,7 +3833,6 @@ $meta = {
       }
     },
     description => 'Bridge Forwarding Table.  One of these is created every time a Device is queried.  Entries in these tables contain physical addresses and the ports where they have been seen.',
-    has_history => 0,
     index => [ ['device'], ['tstamp'] ],
     isjoin => '0',
     label => [
@@ -3940,7 +3904,6 @@ $meta = {
       }
     },
     description => 'Bridge Forwarding Table entry',
-    has_history => 0,
     index => [ ['fwtable'], ['interface'], ['physaddr'] ],
     isjoin => '0',
     label => [
@@ -3990,7 +3953,6 @@ $meta = {
       }
     },
     description => 'Types of Fiber',
-    has_history => 0,
     index => [
       [
         'name'
@@ -4058,7 +4020,6 @@ $meta = {
       }
     },
     description => 'Floor Table',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -4123,7 +4084,6 @@ $meta = {
       }
     },
     description => 'Join between a ContactList and its Access Rights',
-    has_history => 0,
     index => [ ['accessright'] ],
     isjoin => '1',
     label => [
@@ -4277,7 +4237,6 @@ $meta = {
       }
     },
     description => 'Horizontal Cable',
-    has_history => 0,
     index => [
       [
         'account'
@@ -4678,7 +4637,6 @@ $meta = {
       }
     },
     description => 'An interface associated with a device',
-    has_history => 0,
     index => [ ['description'], ['stp_id'], ['physaddr'], ['jack'], ['neighbor'], ['oper_duplex'], ['oper_status'], ['speed'], ['circuit'] ],
     isjoin => '0',
     label => [
@@ -4815,7 +4773,6 @@ $meta = {
       }
     },
     description => 'Interface to VLAN join table',
-    has_history => 0,
     index => [ ['stp_instance'],  ['stp_des_bridge'], ['stp_des_port'], ['vlan'] ],
     isjoin => '0',
     label => [
@@ -4916,7 +4873,6 @@ $meta = {
       }
     },
     description => 'A relationship between an IP address and a running Internet service',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5100,8 +5056,9 @@ $meta = {
 
   },
     description => 'An IP (v4 or v6) CIDR block, which can represent both individual addresses and blocks of addresses (subnets, etc).',
-    has_history => 0,
     index => [ ['status'], ['first_seen'], ['last_seen'], ['interface'], ['vlan'] ],
+#push @statements, "create index ipblock_is_network_idx on ipblock using btree (is_network(addr));";
+#push @statements, "create index ipblock_addr_gist_idx on ipblock using gist (iprange(addr));";
     isjoin => '0',
     label => [
       'address',
@@ -5205,7 +5162,6 @@ $meta = {
       }
     },
     description => 'An Ipblock Attribute',
-    has_history => 0,
     index => [
       [
         'ipblock'
@@ -5261,7 +5217,6 @@ $meta = {
       }
     },
     description => 'An Ipblock Attributes Name',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5304,7 +5259,6 @@ $meta = {
       }
     },
     description => 'IP block status',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5367,7 +5321,6 @@ $meta = {
       }
     },
     description => 'Device Maintenance Contract',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => ['provider','number'],
@@ -5407,7 +5360,6 @@ $meta = {
       }
     },
     description => 'Status information for what is monitored',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5458,7 +5410,6 @@ $meta = {
       }
     },
     description => 'Organizationally Unique Identifier',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5665,7 +5616,6 @@ $meta = {
       },
     },
     description => 'Information about an individual',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5749,7 +5699,6 @@ $meta = {
       }
     },
     description => 'A physical or MAC address',
-    has_history => 0,
     index => [ ['first_seen' ], ['last_seen'] ],
     isjoin => '0',
     label => [
@@ -5823,7 +5772,6 @@ $meta = {
       }
     },
     description => 'Custom attributes can be assigned to physical (MAC) addresses',
-    has_history => 0,
     index => [
       [
         'physaddr'
@@ -5879,7 +5827,6 @@ $meta = {
       }
     },
     description => 'Custom attribute name for physical (MAC) addresses',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -5996,7 +5943,6 @@ $meta = {
       }
     },
     description => 'Product Names',
-    has_history => 0,
     index => [
       [
         'sysobjectid'
@@ -6066,7 +6012,6 @@ $meta = {
       }
     },
     description => 'Types of network devices',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -6170,7 +6115,6 @@ $meta = {
       }
     },
     description => 'DNS Resource Record. Also known as the "owner", this object in Netdot groups all the records with the same name.',
-    has_history => 0,
     index => [ ['name'], ['expiration'], ['created'], ['modified'] ],
     isjoin => '0',
     label => [
@@ -6243,7 +6187,6 @@ $meta = {
       }
     },
     description => 'A DNS "A" record makes a connection between a domain name and an IPv4 address.  A "AAAA" record does the same thing, but with IPv6 addresses. A "dual-stack" host can have both an A record and a AAAA record at the same time.',
-    has_history => 0,
     index => [ ['ipblock'] ],
     isjoin => '0',
     label => [
@@ -6306,7 +6249,6 @@ $meta = {
       }
     },
     description => 'DNS CNAME records map an alias or nickname to the real or Canonical name which may lie outside the current zone. Canonical means expected or real name.',
-    has_history => 0,
     index => [ ['cname'] ],
     isjoin => '0',
     label => [
@@ -6393,7 +6335,6 @@ $meta = {
       }
   },
     description => 'The DS Resource Record refers to a DNSKEY RR and is used in the DNS DNSKEY authentication process.  A DS RR refers to a DNSKEY RR by storing the key tag, algorithm number, and a digest of the DNSKEY RR.',
-    has_history => 0,
     index => [ ['key_tag'] ],
     isjoin => '0',
     label => [
@@ -6471,7 +6412,6 @@ $meta = {
       }
     },
     description => 'DNS HINFO records are used to acquire general information about a host.  The main use is for protocols such as FTP that can use special procedures when talking between machines or operating systems of the same type.  These may also be useful just for inventory purposes.  Publishing HINFO records may pose a security risk, thus Netdot administrators may choose not to include these records when exporting zone data',
-    has_history => 0,
     index => [
       [
         'rr'
@@ -6581,7 +6521,6 @@ $meta = {
       },
     },
     description => 'Location Information. See RFC1876',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -6657,7 +6596,6 @@ $meta = {
       }
     },
     description => 'A mail exchanger record (MX record) is a type of resource record in the Domain Name System that specifies a mail server responsible for accepting email messages on behalf of a recipient\'s domain and a preference value used to prioritize mail delivery if multiple mail servers are available. The set of MX records of a domain name specifies how email should be routed with the Simple Mail Transfer Protocol.',
-    has_history => 0,
     index => [ ['exchange'] ],
     isjoin => '0',
     label => [
@@ -6768,7 +6706,6 @@ $meta = {
       }
     },
     description => 'Naming Authority Pointer (NAPTR) Resource Record (RFC3403)',
-    has_history => 0,
     index => [ ['rr'], ['services'] ],
     isjoin => '0',
     label => [
@@ -6840,7 +6777,6 @@ $meta = {
       }
     },
     description => 'DNS NS Record',
-    has_history => 0,
     index => [ ['nsdname'] ],
     isjoin => '0',
     label => [
@@ -6921,7 +6857,6 @@ $meta = {
       }
     },
     description => 'A PTR record is the reverse of an A record. That is, it maps an IP address to a hostname, rather than vice versa.',
-    has_history => 0,
     index => [ ['ipblock'], ['rr'], ],
     isjoin => '0',
     label => [
@@ -7016,7 +6951,6 @@ $meta = {
       }
     },
     description => 'DNS SRV Record (RFC 2782)',
-    has_history => 0,
     index => [ ['target'] ],
     isjoin => '0',
     label => [
@@ -7085,7 +7019,6 @@ $meta = {
       }
     },
     description => 'DNS TXT records are used to hold descriptive text.  The semantics of the text depends on the domain where it is found.',
-    has_history => 0,
     index => [[ 'rr' ], ['txtdata']],
     isjoin => '0',
     label => [
@@ -7140,7 +7073,6 @@ $meta = {
       }
     },
     description => 'Room',
-    has_history => 0,
     index => [
       [
         'name'
@@ -7200,7 +7132,6 @@ $meta = {
       }
     },
     description => 'An Internet service',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -7251,7 +7182,6 @@ $meta = {
       }
     },
     description => 'Information about the database schema. This is used to verify that the application version matches the DB schema version, and also during upgrades to track which changes need to be applied',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -7408,7 +7338,6 @@ $meta = {
       }
     },
     description => 'A physical location such as a building or data center.',
-    has_history => 0,
     index => [
       [
         'street1'
@@ -7490,7 +7419,6 @@ $meta = {
       }
     },
     description => 'Site to Subnet join table',
-    has_history => 0,
     index => [],
     isjoin => '1',
     label => [
@@ -7574,7 +7502,6 @@ $meta = {
       },
     },
     description => 'Spanning Tree Protocol Instance',
-    has_history => 0,
     index => [
       [
         'root_bridge'
@@ -7675,7 +7602,6 @@ $meta = {
       },
     },
     description => 'A Closet Picture.  Pictures are stored in the database in binary format.',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -7769,7 +7695,6 @@ $meta = {
       },
     },
     description => 'A Floor Picture.  Pictures are stored in the database in binary format.',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -7863,7 +7788,6 @@ $meta = {
       },
     },
     description => 'A Site Picture.  Pictures are stored in the database in binary format.',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -7938,7 +7862,6 @@ $meta = {
       }
     },
     description => 'Cable Splices',
-    has_history => 0,
     index => [
       [
         'strand1'
@@ -7994,7 +7917,6 @@ $meta = {
       }
     },
     description => 'Cable strand/pair status',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -8054,7 +7976,6 @@ $meta = {
       }
     },
     description => 'IP Subnet to DNS Zone join table',
-    has_history => 0,
     index => [],
     isjoin => '1',
     label => [
@@ -8108,7 +8029,6 @@ $meta = {
       }
     },
     description => 'Types of Netdot users',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -8169,7 +8089,6 @@ $meta = {
       }
     },
     description => 'Join between a Person and his/her Access Rights',
-    has_history => 0,
     index => [ ['accessright'] ],
     isjoin => '1',
     label => [
@@ -8252,7 +8171,6 @@ $meta = {
       }
     },
     description => 'A Virtual LAN',
-    has_history => 0,
     index => [
       [ 'vlangroup' ],
     ],
@@ -8334,7 +8252,6 @@ $meta = {
       },
     },
     description => 'A Virtual LAN Group',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -8404,7 +8321,6 @@ $meta = {
       },
     },
     description => 'An alias of an existing zone',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -8558,7 +8474,6 @@ $meta = {
       }
     },
     description => 'A DNS Zone',
-    has_history => 0,
     index => [],
     isjoin => '0',
     label => [
@@ -8637,7 +8552,6 @@ $meta = {
       },
     },
     description => 'DNS and DHCP changes',
-    has_history => 0,
     index => [ ['zone'], ['scope'], ['pending'] ],
     isjoin => '0',
     label => [
@@ -8689,7 +8603,6 @@ $meta = {
       }        
     },
     description => 'Saved SQL queries',
-    has_history => 0,
     unique => [ ['name'] ],
     label => [ 'name', 'querytext'  ],
     index => [ ],
@@ -8706,7 +8619,28 @@ $meta = {
     } 
   }, 
  },
-'procedures' => {
+'pre-procedures' => {	# processed before "tables"
+    is_network => {
+	name       => 'ipblock_parent',
+	sql        => <<'EOF',
+create or replace
+function is_network(inet)
+returns bool as $$
+ select
+ case
+  when family($1) = 6 and masklen($1) = 128 then
+   false
+  when family($1) = 4 and masklen($1) = 32 then
+   false
+  else
+   true
+ end
+$$ language SQL immutable;
+EOF
+	parameters => 'bigint',
+    },
+ },
+'post-procedures' => {	# processed after "tables"
     ipblock_parent => {
 	name       => 'ipblock_parent',
 	sql        => <<'EOF',
@@ -8715,15 +8649,15 @@ function ipblock_parent(bigint)
 returns bigint as $$
  select id from ipblock
  where
-  addr >>= (
-   select addr from ipblock
+  iprange(addr) >>= (
+   select iprange(addr) from ipblock
    where
     id = $1
   )
   and id != $1
- order by masklen(addr) desc
+ order by @ iprange(addr)
  limit 1
-$$ language SQL;
+$$ language SQL stable;
 EOF
 	parameters => 'bigint',
     },
