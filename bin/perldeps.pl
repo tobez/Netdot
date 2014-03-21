@@ -64,7 +64,9 @@ my @DEPS = (
     {apt=> 'libssl-dev', rpm=>'openssl-devel'}, # needed by Net::DNS::ZoneFile::Fast
     {cpan=>'Net::DNS::ZoneFile::Fast', apt=> 'dnssec-tools', rpm=>''},
     {cpan=>'Socket6', apt=> 'libsocket6-perl', rpm=>'perl-Socket6'},
-    {cpan=>'XML::Simple', apt=>'libxml-simple-perl', rpm=>'perl-XML-Simple'}
+    {cpan=>'XML::Simple', apt=>'libxml-simple-perl', rpm=>'perl-XML-Simple'},
+    {apt=>'postgresql', rpm=>'postgresql'},
+    {cpan=>'DBD::Pg 2.19.3', apt=> 'libdbd-pg-perl', rpm=>'perl-DBD-Pg'}
     ) ;
 
 if ( $action eq 'test' ){
@@ -80,19 +82,6 @@ if ( $action eq 'test' ){
 	die "You must be root to install required dependencies";
     }
     
-    print "\nWhich RDBMS do you plan to use as backend: [mysql|Pg]? ";
-    my $ans = <STDIN>;
-    chomp($ans);
-    if ( $ans =~ /mysql/i ){
-	push (@DEPS, {apt=>'mysql-server', rpm=>'mysql-server'});
-	push (@DEPS, {cpan=>'DBD::mysql', apt=> 'libdbd-mysql-perl', rpm=>'perl-DBD-MySQL'});
-
-    }elsif ( $ans =~ /pg/i ){
-	push (@DEPS, {apt=>'postgresql', rpm=>'postgresql'});
-	push (@DEPS, {cpan=>'DBD::Pg', apt=> 'libdbd-pg-perl', rpm=>'perl-DBD-Pg'});
-    }else{
-	die "Unrecognized RDBMS: $ans\n";
-    }
     my $program;
     if( $action eq 'rpm-install' ){
 	$program = 'yum install';
@@ -317,3 +306,4 @@ sub cmd {
 	die "There was a problem running $str\n";
     }
 }
+# vim: set ts=8:
