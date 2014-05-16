@@ -2121,18 +2121,6 @@ sub arp_update {
     my $start = time;
     $logger->debug(sub{"$host: Updating ARP cache"});
   
-    # Create ArpCache object
-    
-    my $ac;
-    eval {
-	$ac = ArpCache->insert({device=>$self->id, tstamp=>$timestamp});
-    };
-    if ( my $e = $@ ){
-	$logger->warn(sprintf("Device %s: Could not insert ArpCache at %s: %s", $self->fqdn, 
-			      $timestamp, $e));
-	return;
-    }
-	
     $self->_update_macs_from_arp_cache(caches    => [$cache], 
 				       timestamp => $timestamp, 
 				       atomic    => $argv{atomic},
@@ -2143,27 +2131,38 @@ sub arp_update {
 				      atomic         => $argv{atomic},
 	);
 
-    my ($arp_count, @ce_updates);
+    my ($arp_count, @ce_updates, @ips, @macs);
+    my $devid = $self->id;
 
     foreach my $version ( keys %$cache ){
 	foreach my $intid ( keys %{$cache->{$version}} ){
 	    foreach my $ip ( keys %{$cache->{$version}{$intid}} ){
 		my $mac = $cache->{$version}{$intid}{$ip};
 		$arp_count++;
+		push @ips, $ip;
+		push @macs, $mac;
 		push @ce_updates, {
-		    arpcache  => $ac->id,
+		    device    => $devid,
 		    interface => $intid,
 		    ipaddr    => $ip,
-		    version   => $version,
-		    physaddr  => $mac,
+		    physaddr  => PhysAddr->format_address($mac),
 		};
 	    }
 	}
     }
+    my $ip2id = Ipblock->to_id(\@ips);
+    my $mac2id = PhysAddr->to_id(\@macs);
+    for my $u (@ce_updates) {
+	$u->{ip_id} = $ip2id->{$u->{ipaddr}};
+	$u->{mac_id} = $mac2id->{$u->{physaddr}};
+    }
+
     if ( $argv{atomic} ){
-	Netdot::Model->do_transaction( sub{ return ArpCacheEntry->fast_insert(list=>\@ce_updates) } );
+	Netdot::Model->do_transaction(sub {
+	    ArpHistory->fast_insert(list=>\@ce_updates, timestamp => $timestamp)
+	} );
     }else{
-	ArpCacheEntry->fast_insert(list=>\@ce_updates);
+	ArpHistory->fast_insert(list=>\@ce_updates, timestamp => $timestamp);
     }
 
     # Set the last_arp timestamp
@@ -5463,7 +5462,7 @@ sub _update_macs_from_arp_cache {
 	foreach my $version ( keys %{$cache} ){
 	    foreach my $idx ( keys %{$cache->{$version}} ){
 		foreach my $mac ( values %{$cache->{$version}->{$idx}} ){
-		    $mac_updates{$mac} = 1;
+		    $mac_updates{PhysAddr->format_address($mac)} = 1;
 		}
 	    }
 	}
