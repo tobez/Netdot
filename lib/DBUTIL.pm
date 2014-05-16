@@ -47,7 +47,7 @@ sub init {
     my $rel_dir = '../etc';
     my $abs_dir = '<<Make:ETC>>';
 
-    if ( -d $specified_dir ){
+    if (defined $specified_dir && -d $specified_dir ){
 	$CONFIG{CONFIG_DIR} = $specified_dir;
     }elsif ( -d $abs_dir ){
 	$CONFIG{CONFIG_DIR} = $abs_dir;
@@ -373,7 +373,16 @@ sub create_db {
         my $dbh = DBI->connect("dbi:Pg:dbname=postgres;host=$CONFIG{DB_HOST};port=$CONFIG{DB_PORT}", 
             $CONFIG{DB_DBA}, $CONFIG{DB_DBA_PASSWORD})
                 or die $DBI::errstr;
-        $dbh->do("CREATE DATABASE $CONFIG{DB_DATABASE} WITH ENCODING = 'UTF8' TEMPLATE template0;")
+	
+	my $template_name = "template1";
+	my ($template1_encoding) = $dbh->selectrow_array(
+	    "SELECT pg_encoding_to_char(encoding)
+	    FROM pg_database
+	    WHERE datname = ?", {}, $template_name);
+	unless ($template1_encoding || $template1_encoding eq "UTF8") {
+	    $template_name = "template0";
+	}
+        $dbh->do("CREATE DATABASE $CONFIG{DB_DATABASE} WITH ENCODING = 'UTF8' TEMPLATE $template_name;")
             or die $DBI::errstr;
     }
 }
