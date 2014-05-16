@@ -73,13 +73,34 @@ $obj->arp_update(cache => {
     6 => { $ints[0] => { "2001:2010:1::beef" => "7071BC115354",
 			 "2001:2010:1::f00f" => "90fba62a3270" }}
     }, timestamp => $ts);
-my @ace = ArpCacheEntry->search_interface($ints[0], $ts);
-ok(@ace >= 4, "found updated arp caches");
+my @ace = ArpHistory->search_interface($ints[0], $ts);
+ok(@ace >= 4, "found new arp history entries");
 ok(1 == (grep { $_->ipaddr->address eq "192.168.52.46" } @ace), "192.168.52.46 is in the results once");
 ok(1 == (grep { $_->ipaddr->address eq "2001:2010:1::f00f" } @ace), "2001:2010:1::f00f is in the results once");
 ok(2 == (grep { $_->physaddr->address eq "7071BC115354" } @ace), "7071BC115354 is in the results twice");
-ok(2 == (grep { $_->physaddr->address eq "90fba62a3270" } @ace), "90fba62a3270 is in the results twice");
+ok(2 == (grep { $_->physaddr->address eq "90FBA62A3270" } @ace), "90FBA62A3270 is in the results twice");
+ok(1 == (grep { $_->ipaddr->address eq "192.168.66.66" } @ace), "192.168.66.66 is in the results once");
+ok(1 == (grep { $_->ipaddr->address eq "2001:2010:1::beef" } @ace), "2001:2010:1::beef is in the results once");
+
 my %to_clean;
+%to_clean = (%to_clean, map { $_->ipaddr->address, $_->ipaddr } @ace);
+%to_clean = (%to_clean, map { $_->physaddr->address, $_->physaddr } @ace);
+
+sleep 2;
+my $new_ts = $obj->timestamp;
+$obj->arp_update(cache => {
+    4 => { $ints[0] => { "192.168.52.46" => "7071BC115354" }},
+    6 => { $ints[0] => { "2001:2010:1::f00f" => "90fba62a3270" }}
+    }, timestamp => $new_ts);
+@ace = ArpHistory->search_interface($ints[0], $new_ts);
+ok(@ace >= 2, "found updated arp history entries");
+ok(1 == (grep { $_->ipaddr->address eq "192.168.52.46" } @ace), "192.168.52.46 is in the updated results once");
+ok(1 == (grep { $_->ipaddr->address eq "2001:2010:1::f00f" } @ace), "2001:2010:1::f00f is in the updated results once");
+ok(1 == (grep { $_->physaddr->address eq "7071BC115354" } @ace), "7071BC115354 is in the updated results once");
+ok(1 == (grep { $_->physaddr->address eq "90FBA62A3270" } @ace), "90FBA62A3270 is in the updated results once");
+ok(0 == (grep { $_->ipaddr->address eq "192.168.66.66" } @ace), "192.168.66.66 is NOT in the updated results");
+ok(0 == (grep { $_->ipaddr->address eq "2001:2010:1::beef" } @ace), "2001:2010:1::beef is NOT in the updated results");
+
 %to_clean = (%to_clean, map { $_->ipaddr->address, $_->ipaddr } @ace);
 %to_clean = (%to_clean, map { $_->physaddr->address, $_->physaddr } @ace);
 
