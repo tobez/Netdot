@@ -2161,7 +2161,7 @@ sub get_devices {
   Arguments: 
     limit  - Return N last entries (default: 10)
   Returns:   
-    Array ref of timestamps, PhysAddr IDs and Interface IDs
+    Array ref of Interface IDs, PhysAddr IDs, firstseen and lastseen timestamps
   Examples:
     print $ip->get_last_n_arp(10);
 
@@ -2170,34 +2170,16 @@ sub get_devices {
 sub get_last_n_arp {
     my ($self, $limit) = @_;
     $self->isa_object_method('get_last_n_arp');
-	
+
+    $limit ||= 10;
     my $dbh = $self->db_Main();
-    my $id = $self->id;
-    my $q1 = "SELECT   arp.tstamp
-              FROM     interface i, arpcacheentry arpe, arpcache arp, ipblock ip
-              WHERE    ip.id=$id
-                AND    arpe.interface=i.id 
-                AND    arpe.ipaddr=ip.id 
-                AND    arpe.arpcache=arp.id 
-              GROUP BY arp.tstamp 
-              ORDER BY arp.tstamp DESC
-              LIMIT $limit";
 
-    my @tstamps = @{ $dbh->selectall_arrayref($q1) };
-    return unless @tstamps;
-    my $tstamps = join ',', map { "'$_'" } map { $_->[0] } @tstamps;
-
-    my $q2 = "SELECT   i.id, p.id, arp.tstamp
-              FROM     physaddr p, interface i, arpcacheentry arpe, arpcache arp, ipblock ip
-              WHERE    ip.id=$id 
-                AND    arpe.physaddr=p.id 
-                AND    arpe.interface=i.id 
-                AND    arpe.ipaddr=ip.id 
-                AND    arpe.arpcache=arp.id 
-                AND    arp.tstamp IN($tstamps)
-              ORDER BY arp.tstamp DESC";
-
-    return $dbh->selectall_arrayref($q2);
+    return $dbh->selectall_arrayref(
+	"SELECT interface, physaddr, firstseen, lastseen
+	FROM arphistory
+	WHERE ipaddr = ?
+	ORDER BY lastseen DESC
+	LIMIT ?", {}, $self->id, $limit);
 }
 
 ################################################################
@@ -2217,11 +2199,10 @@ sub get_last_arp_mac {
     my ($self) = @_;
     $self->isa_object_method('get_last_arp_mac');
     
-    if ( my $arp = $self->get_last_n_arp(1) ){
-        my $row = shift @$arp;
-	my ($iid, $macid, $tstamp) = @$row;
-	my $mac = PhysAddr->retrieve($macid);
-	return $mac if defined $mac;
+    my $arp = $self->get_last_n_arp(1);
+    if ($arp && @$arp && $arp->[0][1]) {
+	# MAC ID is the second field of the first row of the result
+	return PhysAddr->retrieve($arp->[0][1]);
     }
 }
 
@@ -3097,6 +3078,41 @@ sub _get_status_id {
     return $id;
 }
 
+=head2 to_id - Get a hash of IP ids indexed by IPs in a string form
+
+  Arguments: 
+    A reference to a list of IP addresses in a string form
+  Returns:   
+    A reference to a hash where keys are IP addresses in a string
+    form and values are corresponding ids from the database.
+    If the IP is not found in the DB, it will not be present in the
+    resulting hash.
+  Examples:
+    my $ip2id = Ipblock->to_id([qw(1.2.3.4 5.6.7.8)]);
+    if ($ip2id->{"5.6.7.8"}) {
+	my $ip = Ipblock->retrieve($ip2id->{"5.6.7.8"});
+    }
+
+=cut
+
+sub to_id
+{
+    my ($class, $ips) = @_;
+    $class->isa_class_method('to_id');
+
+    return {} unless $ips && @$ips;
+    my $dbh = $class->db_Main;
+    my $rows = $dbh->selectall_arrayref("
+                SELECT   host(addr), id
+                 FROM    ipblock
+                WHERE    iprange(addr) = ANY(?::iprange[])", {},
+		$ips);
+    my %r;
+    for my $r (@$rows) {
+	$r{$r->[0]} = $r->[1];
+    }
+    return \%r;
+}
 
 
 ##################################################################
