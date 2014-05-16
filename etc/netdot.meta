@@ -118,6 +118,7 @@ $meta = {
       ]
     }
   },
+
   Audit => {
     table_db_name => 'audit',
     columns => {
@@ -220,8 +221,9 @@ $meta = {
       ]
     }
   },
-  ArpCache => {
-    table_db_name => 'arpcache',
+
+  ArpHistory => {
+    table_db_name => 'arphistory',
     columns => {
       id => {
         default => '',
@@ -233,69 +235,16 @@ $meta = {
       },
       device => {
         default => '',
-        description => 'Device where this Arp Cache was found',
+        description => 'Device where this Arp History entry was found',
         length => '',
         linksto => {
           cascade => 'Delete',
-	  order_by => 'tstamp DESC',
-          method => 'arp_caches',
+	  order_by => 'lastseen DESC',
+          method => 'arp_entries',
           table => 'Device'
         },
         nullable => 0,
         tag => 'Device',
-        type => 'bigint'
-      },
-      tstamp => {
-        default => '1970-01-02 00:00:01',
-        description => 'When this Cache was collected',
-        length => '',
-        nullable => 0,
-        tag => 'Timestamp',
-        type => 'timestamp'
-      }
-    },
-    description => 'Device ARP Cache',
-    index => [ ['device'], ['tstamp'] ],
-    isjoin => '0',
-    label => [
-      'tstamp',
-      'device'
-    ],
-    primary_key => 'id',
-    unique => [ ['device', 'tstamp'] ],
-    views => {
-      all => [
-        'tstamp',
-        'device'
-      ],
-      brief => [
-        'tstamp',
-        'device'
-      ]
-    }
-  },
-  ArpCacheEntry => {
-    table_db_name => 'arpcacheentry',
-    columns => {
-      arpcache => {
-        default => '',
-        description => 'ARP Cache where this entry belongs',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'entries',
-          table => 'ArpCache',
-        },
-        nullable => 0,
-        tag => 'ARP Cache',
-        type => 'bigint'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
         type => 'bigint'
       },
       interface => {
@@ -304,6 +253,7 @@ $meta = {
         length => '',
         linksto => {
           cascade => 'Delete',
+	  order_by => 'lastseen DESC',
           method => 'arp_entries',
           table => 'Interface'
         },
@@ -317,6 +267,7 @@ $meta = {
         length => '',
         linksto => {
           cascade => 'Delete',
+	  order_by => 'lastseen DESC',
           method => 'arp_entries',
           table => 'Ipblock'
         },
@@ -330,30 +281,49 @@ $meta = {
         length => '',
         linksto => {
           cascade => 'Delete',
+	  order_by => 'lastseen DESC',
           method => 'arp_entries',
           table => 'PhysAddr'
         },
         nullable => 0,
         tag => 'Physical Address',
         type => 'bigint'
+      },
+      firstseen => {
+        default => '',
+        description => 'When this entry was first seen during collection',
+        length => '',
+        nullable => 0,
+        tag => 'First Seen',
+        type => 'timestamp'
+      },
+      lastseen => {
+        default => '',
+        description => 'When this entry was last seen during collection',
+        length => '',
+        nullable => 0,
+        tag => 'Last Seen',
+        type => 'timestamp'
       }
     },
-    description => 'ARP Cache Entry',
-    index => [ ['arpcache'], ['interface'], ['physaddr'], ['ipaddr'] ],
+    description => 'ARP History',
+    index => [ ['device'], ['interface'], ['physaddr'], ['ipaddr'],
+	[qw(device interface ipaddr physaddr)] ],
     isjoin => '0',
     label => [
       'ipaddr',
       'physaddr',
       'interface',
+      'device',
     ],
     primary_key => 'id',
     unique => [],
     views => {
       all => [
+        'device',
 	'interface',
         'ipaddr',
         'physaddr',
-        'arpcache'
       ],
       brief => [
         'ipaddr',
@@ -362,6 +332,7 @@ $meta = {
       ]
     }
   },
+
   ASN => {
     table_db_name => 'asn',
     columns => {
@@ -426,6 +397,7 @@ $meta = {
       ]
     }
   },
+
   Asset => {
     table_db_name => 'asset',
     columns => {
@@ -582,6 +554,7 @@ $meta = {
     label => ['product_id', 'serial_number', 'physaddr' ],
     unique => [ ['physaddr'], ['product_id', 'serial_number'] ]
   },
+
   Availability => {
     table_db_name => 'availability',
     columns => {
@@ -632,6 +605,7 @@ $meta = {
       ]
     }
   },
+
   BGPPeering => {
     table_db_name => 'bgppeering',
     columns => {
@@ -804,6 +778,7 @@ $meta = {
       ]
     }
   },
+
   BackboneCable => {
     table_db_name => 'backbonecable',
     columns => {
@@ -940,6 +915,7 @@ $meta = {
       ]
     }
   },
+
   CableStrand => {
     table_db_name => 'cablestrand',
     columns => {
@@ -1080,6 +1056,7 @@ $meta = {
       ]
     }
   },
+
   CableType => {
     table_db_name => 'cabletype',
     columns => {
@@ -1130,6 +1107,7 @@ $meta = {
       ]
     }
   },
+
   Circuit => {
     table_db_name => 'circuit',
     columns => {
@@ -1281,6 +1259,7 @@ $meta = {
       ]
     }
   },
+
   CircuitStatus => {
     table_db_name => 'circuitstatus',
     columns => {
@@ -1331,6 +1310,7 @@ $meta = {
       ]
     }
   },
+
   CircuitType => {
     table_db_name => 'circuittype',
     columns => {
@@ -1381,6 +1361,7 @@ $meta = {
       ]
     }
   },
+
   Closet => {
     table_db_name => 'closet',
     columns => {
@@ -1593,6 +1574,7 @@ $meta = {
       ]
     }
   },
+
   SiteLink => {
     table_db_name => 'sitelink',
     columns => {
@@ -1688,6 +1670,7 @@ $meta = {
       ]
     }
   },
+
   Contact => {
     table_db_name => 'contact',
     columns => {
@@ -1828,6 +1811,7 @@ $meta = {
       ]
     }
   },
+
   ContactList => {
     table_db_name => 'contactlist',
     columns => {
@@ -1879,6 +1863,7 @@ $meta = {
       ]
     }
   },
+
   ContactType => {
     table_db_name => 'contacttype',
     columns => {
@@ -1929,7 +1914,8 @@ $meta = {
       ]
     }
   },
-  DataCache => { 
+
+  DataCache => {
     table_db_name => 'datacache',
     columns => { 
       id => { 
@@ -1980,6 +1966,7 @@ $meta = {
       ]
     } 
   },   
+
   Device => {
     table_db_name => 'device',
     columns => {
@@ -2614,6 +2601,7 @@ $meta = {
       brief => ['name', 'asset_id', 'site', 'snmp_target' ]
     }
   },
+
   DeviceAttr => {
     table_db_name => 'deviceattr',
     columns => {
@@ -2687,6 +2675,7 @@ $meta = {
       ]
     }
   },
+
   DeviceAttrName => {
     table_db_name => 'deviceattrname',
     columns => {
@@ -2737,6 +2726,7 @@ $meta = {
       ]
     }
   },
+
   DeviceModule => {
     table_db_name => 'devicemodule',
     columns => {
@@ -2923,6 +2913,7 @@ $meta = {
       ]
     }
   },
+
   DeviceContacts => {
     table_db_name => 'devicecontacts',
     columns => {
@@ -2985,6 +2976,7 @@ $meta = {
       ]
     }
   },
+
   DhcpAttr => {
     table_db_name => 'dhcpattr',
     columns => {
@@ -3057,6 +3049,7 @@ $meta = {
       ]
     }
   },
+
   DhcpAttrName => {
     table_db_name => 'dhcpattrname',
     columns => {
@@ -3125,6 +3118,7 @@ $meta = {
       ]
     }
   },
+
   DhcpScope => {
     table_db_name => 'dhcpscope',
     columns => {
@@ -3348,6 +3342,7 @@ $meta = {
       ]
     }
   },
+
   DhcpScopeUse => {
     table_db_name => 'dhcpscopeuse',
     columns => {
@@ -3397,6 +3392,7 @@ $meta = {
       brief => ['scope', 'template']
     }
   },
+
   DhcpScopeType => {
     table_db_name => 'dhcpscopetype',
     columns => {
@@ -3447,6 +3443,7 @@ $meta = {
       ]
     }
   },
+
   Entity => {
     table_db_name => 'entity',
     columns => {
@@ -3624,6 +3621,7 @@ $meta = {
       ],
     }
   },
+
   EntityRole => {
     table_db_name => 'entityrole',
     columns => {
@@ -3685,6 +3683,7 @@ $meta = {
       ],
     },
   },
+
   EntitySite => {
     table_db_name => 'entitysite',
     columns => {
@@ -3748,6 +3747,7 @@ $meta = {
       ]
     }
   },
+
   EntityType => {
     table_db_name => 'entitytype',
     columns => {
@@ -3798,16 +3798,25 @@ $meta = {
       ]
     }
   },
-  FWTable => {
-    table_db_name => 'fwtable',
+
+  FwHistory => {
+    table_db_name => 'fwhistory',
     columns => {
-      device => {
+      id => {
         default => '',
         description => '',
         length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      device => {
+        default => '',
+        description => 'Device where this FW History entry was found',
+        length => '',
         linksto => {
           cascade => 'Delete',
-          order_by => 'tstamp DESC',
+	  order_by => 'lastseen DESC',
           method => 'forwarding_tables',
           table => 'Device'
         },
@@ -3815,73 +3824,13 @@ $meta = {
         tag => 'Device',
         type => 'bigint'
       },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      tstamp => {
-        default => '1970-01-02 00:00:01',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => 'Timestamp',
-        type => 'timestamp'
-      }
-    },
-    description => 'Bridge Forwarding Table.  One of these is created every time a Device is queried.  Entries in these tables contain physical addresses and the ports where they have been seen.',
-    index => [ ['device'], ['tstamp'] ],
-    isjoin => '0',
-    label => [
-      'tstamp',
-      'device'
-    ],
-    primary_key => 'id',
-    unique => [ ['device','tstamp'] ],
-    views => {
-      all => [
-        'tstamp',
-        'device'
-      ],
-      brief => [
-        'tstamp',
-        'device'
-      ]
-    }
-  },
-  FWTableEntry => {
-    table_db_name => 'fwtableentry',
-    columns => {
-      fwtable => {
-        default => '',
-        description => '',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'entries',
-          table => 'FWTable'
-        },
-        nullable => 0,
-        tag => 'Table',
-        type => 'bigint'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
       interface => {
         default => '',
-        description => '',
+        description => 'Interface',
         length => '',
         linksto => {
           cascade => 'Delete',
+	  order_by => 'lastseen DESC',
           method => 'fwt_entries',
           table => 'Interface'
         },
@@ -3891,39 +3840,59 @@ $meta = {
       },
       physaddr => {
         default => '',
-        description => '',
+        description => 'Physical Address (MAC)',
         length => '',
         linksto => {
           cascade => 'Delete',
+	  order_by => 'lastseen DESC',
           method => 'fwt_entries',
           table => 'PhysAddr'
         },
         nullable => 0,
         tag => 'Physical Address',
         type => 'bigint'
+      },
+      firstseen => {
+        default => '',
+        description => 'When this entry was first seen during collection',
+        length => '',
+        nullable => 0,
+        tag => 'First Seen',
+        type => 'timestamp'
+      },
+      lastseen => {
+        default => '',
+        description => 'When this entry was last seen during collection',
+        length => '',
+        nullable => 0,
+        tag => 'Last Seen',
+        type => 'timestamp'
       }
     },
-    description => 'Bridge Forwarding Table entry',
-    index => [ ['fwtable'], ['interface'], ['physaddr'] ],
+    description => 'Bridge Forwarding Table History',
+    index => [ ['device'], ['interface'], ['physaddr'],
+	[qw(device interface physaddr)] ],
     isjoin => '0',
     label => [
+      'device',
+      'physaddr',
       'interface',
-      'physaddr'
     ],
     primary_key => 'id',
     unique => [],
     views => {
       all => [
-        'interface',
+	'interface',
         'physaddr',
-        'fwtable',
+        'device',
       ],
       brief => [
-        'interface',
-        'physaddr'
+	'interface',
+        'physaddr',
       ]
     }
   },
+
   FiberType => {
     table_db_name => 'fibertype',
     columns => {
@@ -3978,6 +3947,7 @@ $meta = {
       ]
     }
   },
+
   Floor => {
     table_db_name => 'floor',
     columns => {
@@ -4045,6 +4015,7 @@ $meta = {
       ]
     }
   },
+
   GroupRight => {
     table_db_name => 'groupright',
     columns => {
@@ -4108,6 +4079,7 @@ $meta = {
       ]
     }
   },
+
   HorizontalCable => {
     table_db_name => 'horizontalcable',
     columns => {
@@ -4277,6 +4249,7 @@ $meta = {
       ]
     }
   },
+
   Interface => {
     table_db_name => 'interface',
     columns => {
@@ -4697,6 +4670,7 @@ $meta = {
       ]
     }
   },
+
   InterfaceVlan => {
     table_db_name => 'interfacevlan',
     columns => {
@@ -4800,6 +4774,7 @@ $meta = {
       ]
     }
   },
+
   IpService => {
     table_db_name => 'ipservice',
     columns => {
@@ -4900,6 +4875,7 @@ $meta = {
       ]
     }
   },
+
   Ipblock => {
     table_db_name => 'ipblock',
     columns => {
@@ -5115,6 +5091,7 @@ $meta = {
       ],
     }
   },
+
   IpblockAttr => {
     table_db_name => 'ipblockattr',
     columns => {
@@ -5188,6 +5165,7 @@ $meta = {
       ]
     }
   },
+
   IpblockAttrName => {
     table_db_name => 'ipblockattrname',
     columns => {
@@ -5238,6 +5216,7 @@ $meta = {
       ]
     }
   },
+
   IpblockStatus => {
     table_db_name => 'ipblockstatus',
     columns => {
@@ -5279,6 +5258,7 @@ $meta = {
       ]
     }
   },
+
   MaintContract => {
     table_db_name => 'maintcontract',
     columns => {
@@ -5331,6 +5311,7 @@ $meta = {
       brief => ['number']
     }
   },
+
   MonitorStatus => {
     table_db_name => 'monitorstatus',
     columns => {
@@ -5381,6 +5362,7 @@ $meta = {
       ]
     }
   },
+
   OUI => {
     table_db_name => 'oui',
     columns => {
@@ -5431,6 +5413,7 @@ $meta = {
       ]
     }
   },
+
   Person => {
     table_db_name => 'person',
     columns => {
@@ -5654,6 +5637,7 @@ $meta = {
       ]
     }
   },
+
   PhysAddr => {
     table_db_name => 'physaddr',
     columns => {
@@ -5725,6 +5709,7 @@ $meta = {
       ]
     }
   },
+
   PhysAddrAttr => {
     table_db_name => 'physaddrattr',
     columns => {
@@ -5798,6 +5783,7 @@ $meta = {
       ]
     }
   },
+
   PhysAddrAttrName => {
     table_db_name => 'physaddrattrname',
     columns => {
@@ -5848,6 +5834,7 @@ $meta = {
       ]
     }
   },
+
   Product => {
     table_db_name => 'product',
     columns => {
@@ -5983,6 +5970,7 @@ $meta = {
       ]
     }
   },
+
   ProductType => {
     table_db_name => 'producttype',
     columns => {
@@ -6033,6 +6021,7 @@ $meta = {
       ]
     }
   },
+
   RR => {
     table_db_name => 'rr',
     columns => {
@@ -6140,6 +6129,7 @@ $meta = {
       ]
     }
   },
+
   RRADDR => {
     table_db_name => 'rraddr',
     columns => {
@@ -6207,6 +6197,7 @@ $meta = {
       ]
     }
   },
+
   RRCNAME => {
     table_db_name => 'rrcname',
     columns => {
@@ -6269,6 +6260,7 @@ $meta = {
       ]
     }
   },
+
   RRDS => {
     table_db_name => 'rrds',
     columns => {
@@ -6362,6 +6354,7 @@ $meta = {
       ]
     }
   },
+
   RRHINFO => {
     table_db_name => 'rrhinfo',
     columns => {
@@ -6439,6 +6432,7 @@ $meta = {
       ]
     }
   },
+
   RRLOC => {
     table_db_name => 'rrloc',
     columns => {
@@ -6546,6 +6540,7 @@ $meta = {
       ]
     }
   },
+
   RRMX => {
     table_db_name => 'rrmx',
     columns => {
@@ -6624,6 +6619,7 @@ $meta = {
       ]
     }
   },
+
   RRNAPTR => {
     table_db_name => 'rrnaptr',
     columns => {
@@ -6735,6 +6731,7 @@ $meta = {
       ]
     }
   },
+
   RRNS => {
     table_db_name => 'rrns',
     columns => {
@@ -6802,6 +6799,7 @@ $meta = {
       ]
     }
   },
+
   RRPTR => {
     table_db_name => 'rrptr',
     columns => {
@@ -6885,6 +6883,7 @@ $meta = {
       ]
     }
   },
+
   RRSRV => {
     table_db_name => 'rrsrv',
     columns => {
@@ -6977,6 +6976,7 @@ $meta = {
       ]
     }
   },
+
   RRTXT => {
     table_db_name => 'rrtxt',
     columns => {
@@ -7039,6 +7039,7 @@ $meta = {
       ]
     }
   },
+
   Room => {
     table_db_name => 'room',
     columns => {
@@ -7103,6 +7104,7 @@ $meta = {
       ]
     }
   },
+
   Service => {
     table_db_name => 'service',
     columns => {
@@ -7153,6 +7155,7 @@ $meta = {
       ]
     }
   },
+
   SchemaInfo => {
     table_db_name => 'schemainfo',
     columns => {
@@ -7203,6 +7206,7 @@ $meta = {
       ]
     }
   },
+
   Site => {
     table_db_name => 'site',
     columns => {
@@ -7380,6 +7384,7 @@ $meta = {
       ]
     }
   },
+
   SiteSubnet => {
     table_db_name => 'sitesubnet',
     columns => {
@@ -7443,6 +7448,7 @@ $meta = {
       ]
     }
   },
+
   STPInstance => {
     table_db_name => 'stpinstance',
     columns => {
@@ -7536,6 +7542,7 @@ $meta = {
       ]
     }
   },
+
   ClosetPicture => {
     table_db_name => 'closetpicture',
     columns => {
@@ -7629,6 +7636,7 @@ $meta = {
       ]
     }
   },
+
   FloorPicture => {
     table_db_name => 'floorpicture',
     columns => {
@@ -7722,6 +7730,7 @@ $meta = {
       ]
     }
   },
+
   SitePicture => {
     table_db_name => 'sitepicture',
     columns => {
@@ -7815,6 +7824,7 @@ $meta = {
       ]
     }
   },
+
   Splice => {
     table_db_name => 'splice',
     columns => {
@@ -7888,6 +7898,7 @@ $meta = {
       ]
     }
   },
+
   StrandStatus => {
     table_db_name => 'strandstatus',
     columns => {
@@ -7937,6 +7948,7 @@ $meta = {
       ]
     }
   },
+
   SubnetZone => {
     table_db_name => 'subnetzone',
     columns => {
@@ -8000,6 +8012,7 @@ $meta = {
       ]
     }
   },
+
   UserType => {
     table_db_name => 'usertype',
     columns => {
@@ -8050,6 +8063,7 @@ $meta = {
       ]
     }
   },
+
   UserRight => {
     table_db_name => 'userright',
     columns => {
@@ -8113,6 +8127,7 @@ $meta = {
       ]
     }
   },
+
   Vlan => {
     table_db_name => 'vlan',
     columns => {
@@ -8199,6 +8214,7 @@ $meta = {
       ]
     }
   },
+
   VlanGroup => {
     table_db_name => 'vlangroup',
     columns => {
@@ -8279,6 +8295,7 @@ $meta = {
       ]
     }
   },
+
   ZoneAlias => {
     table_db_name => 'zonealias',
     columns => {
@@ -8344,6 +8361,7 @@ $meta = {
       ]
     }
   },
+
   Zone => {
     table_db_name => 'zone',
     columns => {
@@ -8507,6 +8525,7 @@ $meta = {
       ]
     }
   },
+
   HostAudit => {
     table_db_name => 'hostaudit',
     columns => {
@@ -8574,6 +8593,7 @@ $meta = {
       ]
     }
   },
+
   SavedQueries => { 
     table_db_name => 'savedqueries',
     columns => { 
@@ -8618,7 +8638,9 @@ $meta = {
       ]
     } 
   }, 
+
  },
+
 'procedures' => {
     is_network => {
 	name       => 'is_network',
