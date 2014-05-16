@@ -5,6 +5,7 @@ use List::Util 'shuffle';
 use lib "lib";
 use lib "t";
 use test_helpers;
+use Time::HiRes;
 
 BEGIN { use_ok('Netdot::Model::Ipblock'); }
 
@@ -19,6 +20,24 @@ like(exception {
 }, qr/is not defined in config/, 'bad config for get_maxed_out_subnets');
 
 Ipblock->config->set("SUBNET_USAGE_MINPERCENT", 5);
+
+###print STDERR "# very dangerous, very quiet please\n";
+###my $large_subnet = Ipblock->search(address=>'42.4.0.0', prefix=>'15')->first;
+####my $large_subnet = Ipblock->search(address=>'100.64.0.0', prefix=>'24')->first;
+###use Data::Dump;
+###dd $large_subnet;
+###print STDERR "# large subnet found: ", $large_subnet->addr, "\n";
+###my $started = Time::HiRes::time;
+###$::hehe = 1;
+###my @large_number_of_addresses = $large_subnet->get_addresses_by("Device");
+###$::hehe = 0;
+###my $stopped = Time::HiRes::time;
+####for (@large_number_of_addresses) {
+####	my $n = $_->interface->device->name if $_->interface;
+####}
+###print STDERR "# ", scalar(@large_number_of_addresses), " addresses retrieved in ", sprintf("%.2f seconds\n", $stopped - $started);
+###dd [@large_number_of_addresses[0..2]];
+###exit;
 
 for my $reserved (0, 5) {
 # incorrect indentation kept here because it makes more sense
@@ -86,6 +105,39 @@ is($address->parent, $subnet, 'address.parent = subnet');
 my @children = $subnet->children;
 is(scalar(@children), 1 + $reserved, "subnet now has interesting children");
 is($children[$reserved]->addr, $address->addr, "container.children.last = address");
+
+my $ip2id = Ipblock->to_id([qw(192.0.2.10 5.6.7.8)]);
+ok($ip2id, "to_id returns");
+is(keys %$ip2id, 1, "to_id returns the right number of keys");
+is($ip2id->{"1.2.3.4"}, undef, "to_id: did not ask, did not get");
+is($ip2id->{"5.6.7.8"}, undef, "to_id: asked but not found");
+is($ip2id->{"192.0.2.10"}, $address->id, "to_id: got correct ID");
+
+my @lots_ips;
+{
+my $big_net = NetAddr::IP->new("42.0.0.0/15");
+my $ip = $big_net->first;
+for (1..30000) {
+    $ip += 1;
+    push @lots_ips, $ip->addr;
+}
+push @lots_ips, "192.0.2.10";
+for (1..30000) {
+    $ip += 1;
+    push @lots_ips, $ip->addr;
+}
+}
+
+{
+my $start = Time::HiRes::time, "\n";
+$ip2id = Ipblock->to_id(\@lots_ips);
+printf STDERR "# to_id[tons] took %.2f s\n", Time::HiRes::time - $start;
+ok($ip2id, "to_id[tons] returns");
+is(keys %$ip2id, 1, "to_id[tons] returns the right number of keys");
+is($ip2id->{"1.2.3.4"}, undef, "to_id[tons]: did not ask, did not get");
+is($ip2id->{"42.0.0.42"}, undef, "to_id[tons]: asked but not found");
+is($ip2id->{"192.0.2.10"}, $address->id, "to_id[tons]: got correct ID");
+}
 
 my $desc = $container->get_descendants;
 dump_results($desc, "container.get_descendants()");
