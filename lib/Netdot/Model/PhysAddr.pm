@@ -707,7 +707,7 @@ sub get_last_n_fte {
   Arguments: 
     limit  - Return N last entries (default: 10)
   Returns:   
-    Array ref of timestamps and Interface IDs
+    Array ref of Interface IDs, Ipblock IDs, firstseen and lastseen timestamps
   Examples:
     print $physaddr->get_last_n_arp(10);
 
@@ -716,32 +716,16 @@ sub get_last_n_fte {
 sub get_last_n_arp {
     my ($self, $limit) = @_;
     $self->isa_object_method('get_last_n_arp');
-	
+
+    $limit ||= 10;
     my $dbh = $self->db_Main();
-    my $id = $self->id;
-    my $q1 = "SELECT   arp.tstamp
-              FROM     physaddr p, interface i, arpcacheentry arpe, arpcache arp, ipblock ip
-              WHERE    p.id=$id AND arpe.physaddr=p.id AND arpe.interface=i.id 
-                AND    arpe.ipaddr=ip.id AND arpe.arpcache=arp.id 
-              GROUP BY arp.tstamp 
-              ORDER BY arp.tstamp DESC
-              LIMIT $limit";
 
-    my @tstamps = @{ $dbh->selectall_arrayref($q1) };
-    return unless @tstamps;
-    my $tstamps = join ',', map { "'$_'" } map { $_->[0] } @tstamps;
-
-    my $q2 = "SELECT   i.id, ip.id, arp.tstamp
-              FROM     physaddr p, interface i, arpcacheentry arpe, arpcache arp, ipblock ip
-              WHERE    p.id=$id 
-                AND    arpe.physaddr=p.id 
-                AND    arpe.interface=i.id 
-                AND    arpe.ipaddr=ip.id 
-                AND    arpe.arpcache=arp.id 
-                AND    arp.tstamp IN($tstamps)
-              ORDER BY arp.tstamp DESC";
-
-    return $dbh->selectall_arrayref($q2);
+    return $dbh->selectall_arrayref(
+	"SELECT interface, ipaddr, firstseen, lastseen
+	FROM arphistory
+	WHERE physaddr = ?
+	ORDER BY lastseen DESC
+	LIMIT ?", {}, $self->id, $limit);
 }
 
 ################################################################
@@ -837,6 +821,47 @@ sub format_address {
     $address =~ s/[:\-\.]//g;
     $address = uc($address);
     return $address;
+}
+
+=head2 to_id - Get a hash of PhysAddr ids indexed by MAC addresses
+
+  Arguments: 
+    A reference to a list of MAC addresses
+  Returns:   
+    A reference to a hash where keys are MAC addresses
+    in the canonical form (no separators, all uppercase)
+    and values are corresponding ids from the database.
+    If the MAC is not found in the DB, it will not be present in the
+    resulting hash.
+  Examples:
+    my $mac2id = PhysAddr->to_id([qw(DE:AD:DE:AD:BE:EF 7071BC115354)]);
+    if ($mac2id->{"DEADDEADBEEF"}) {
+	my $mac = PhysAddr->retrieve($mac2id->{"DEADDEADBEEF"});
+    }
+
+=cut
+
+sub to_id
+{
+    my ($class, $macs) = @_;
+    $class->isa_class_method('to_id');
+
+    return {} unless $macs && @$macs;
+    my @canonical;
+    for my $mac (@$macs) {
+	push @canonical, $class->format_address($mac);
+    }
+    my $dbh = $class->db_Main;
+    my $rows = $dbh->selectall_arrayref("
+                SELECT   address, id
+                 FROM    physaddr
+                WHERE    address = ANY(?::varchar[])", {},
+		\@canonical);
+    my %r;
+    for my $r (@$rows) {
+	$r{$r->[0]} = $r->[1];
+    }
+    return \%r;
 }
 
 ################################################################
