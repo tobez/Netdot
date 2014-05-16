@@ -334,10 +334,89 @@ sub upg_105_106 {
 	    die "Install ip4r (http://pgfoundry.org/projects/ip4r) version 2.0 or later first\n";
 	}
 	change_numeric_ip_to_cidr();
+	rearrange_arp_history();
+	rearrange_fw_history();
     } else {
 	die "Unsupported DBMS: $dbms\n";
     }
     push @statements, "UPDATE schemainfo SET version='1.0.6' WHERE id=1;";
+}
+
+sub rearrange_arp_history
+{
+    push @statements, <<EOF;
+CREATE SEQUENCE arphistory_id_seq
+  START WITH 1
+  INCREMENT BY 1
+  NO MINVALUE
+  NO MAXVALUE
+  CACHE 1;
+CREATE TABLE arphistory (
+  id bigint NOT NULL DEFAULT nextval('arphistory_id_seq'),
+  device bigint NOT NULL,
+  interface bigint NOT NULL,
+  ipaddr bigint NOT NULL,
+  physaddr bigint NOT NULL,
+  firstseen timestamp without time zone NOT NULL,
+  lastseen timestamp without time zone NOT NULL,
+  CONSTRAINT pk_arphistory PRIMARY KEY (id),
+  CONSTRAINT fk_device FOREIGN KEY (device) REFERENCES device(id) DEFERRABLE,
+  CONSTRAINT fk_interface FOREIGN KEY (interface) REFERENCES interface(id) DEFERRABLE,
+  CONSTRAINT fk_ipaddr FOREIGN KEY (ipaddr) REFERENCES ipblock(id) DEFERRABLE,
+  CONSTRAINT fk_physaddr FOREIGN KEY (physaddr) REFERENCES physaddr(id) DEFERRABLE
+);
+CREATE INDEX arphistory1 on arphistory using btree (device);
+CREATE INDEX arphistory2 on arphistory using btree (interface);
+CREATE INDEX arphistory3 on arphistory using btree (physaddr);
+CREATE INDEX arphistory4 on arphistory using btree (ipaddr);
+CREATE INDEX arphistory5 on arphistory using btree (device, interface, ipaddr, physaddr);
+GRANT SELECT,INSERT,UPDATE,DELETE ON arphistory TO $netdot_user;
+EOF
+
+    # TODO: Conversion from arpcache/arpcacheentry to arphistory will be here.
+    # Can we do it "offline", maybe with a PLSQL function?
+
+    push @statements, <<EOF;
+DROP TABLE arpcacheentry;
+DROP TABLE arpcache;
+EOF
+}
+
+sub rearrange_fw_history
+{
+    push @statements, <<EOF;
+CREATE SEQUENCE fwhistory_id_seq
+  START WITH 1
+  INCREMENT BY 1
+  NO MINVALUE
+  NO MAXVALUE
+  CACHE 1;
+CREATE TABLE fwhistory (
+  id bigint NOT NULL DEFAULT nextval('fwhistory_id_seq'),
+  device bigint NOT NULL,
+  interface bigint NOT NULL,
+  physaddr bigint NOT NULL,
+  firstseen timestamp without time zone NOT NULL,
+  lastseen timestamp without time zone NOT NULL,
+  CONSTRAINT pk_fwhistory PRIMARY KEY (id),
+  CONSTRAINT fk_device FOREIGN KEY (device) REFERENCES device(id) DEFERRABLE,
+  CONSTRAINT fk_interface FOREIGN KEY (interface) REFERENCES interface(id) DEFERRABLE,
+  CONSTRAINT fk_physaddr FOREIGN KEY (physaddr) REFERENCES physaddr(id) DEFERRABLE
+);
+CREATE INDEX fwhistory1 on fwhistory using btree (device);
+CREATE INDEX fwhistory2 on fwhistory using btree (interface);
+CREATE INDEX fwhistory3 on fwhistory using btree (physaddr);
+CREATE INDEX fwhistory4 on fwhistory using btree (device, interface, physaddr);
+GRANT SELECT,INSERT,UPDATE,DELETE ON fwhistory TO $netdot_user;
+EOF
+
+    # TODO: Conversion from fwtable/fwtableentry to fwhistory will be here.
+    # Can we do it "offline", maybe with a PLSQL function?
+
+    push @statements, <<EOF;
+DROP TABLE fwtableentry;
+DROP TABLE fwtable;
+EOF
 }
 
 sub change_numeric_ip_to_cidr
@@ -412,3 +491,4 @@ EOF
     push @statements, "create index ipblock_addr_gist_idx on ipblock using gist (iprange(addr));";
 }
 
+# vim: set ts=8:
