@@ -46,12 +46,15 @@ $ui->get_allowed_objects($r, $user) if $user;
   <link rel="StyleSheet" href="<% $r->dir_config('NetdotPath') %>css/style.css" type="text/css" />
   <link rel="StyleSheet" href="<% $r->dir_config('NetdotPath') %>css/datechooser.css" type="text/css" />
   <link rel="Shortcut Icon" href="<% $r->dir_config('NetdotPath') %>img/favicon.ico" type="image/x-icon" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.0.9/themes/default/style.min.css" />
   <title>Netdot @ <% $servername %>: <% $title %></title>
 %
 % if ( $meta_refresh ){
     <meta http-equiv="refresh" content="<% $meta_refresh %>">
 % }
 </head>
+<script src="https://code.jquery.com/jquery-1.11.2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstree/3.0.9/jstree.min.js"></script>
 % my $js_prefix = $r->dir_config('NetdotPath') . "java_script";
 % for my $script ( qw(dynamic_list select jsrsClient toggle datechooser) ) {
 <script language="JavaScript" src="<% $js_prefix %>/<% $script %>.js"></script>

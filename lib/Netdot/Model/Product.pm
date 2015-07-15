@@ -22,6 +22,27 @@ Netdot::Model::Product - Netdot Device Product Class
 
 =cut
 
+__PACKAGE__->add_constraint('Hsize_Is_Valid', hsize => \&check_hsize);
+__PACKAGE__->add_constraint('Vsize_Is_Valid', vsize => \&check_vsize);
+
+sub check_hsize
+{
+    my ($value, $self, $column_name, $changing) = @_;
+    return 1 unless defined $value;  # null is always fine
+    $value = 0+$value;
+    return 1 if $value >= 0 && $value <= 3;
+    return 0;
+}
+
+sub check_vsize
+{
+    my ($value, $self, $column_name, $changing) = @_;
+    return 1 unless defined $value;  # null is always fine
+    $value = 0+$value;
+    return 1 if $value >= 0 && $value <= 100;
+    return 0;
+}
+
 ############################################################################
 
 =head2 insert - Insert product

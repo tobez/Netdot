@@ -432,6 +432,156 @@ $meta = {
       ]
     }
   },
+
+######
+  Asset_Option_Spec => {
+    table_db_name => 'asset_option_spec',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      name => {
+        default => '',
+        description => '',
+        length => '64',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      description => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      option_type => {
+        default => '',
+        description => '',
+        length => '30',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      defvalue => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      minint => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint'
+      },
+      maxint => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint'
+      },
+      selection => {
+        default => '',
+        description => '',
+        length => '4096',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      validator => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+    },
+    description => 'Asset Option Specification',
+    has_history => 0,
+    index => [],
+    isjoin => '0',
+    label => [ 'name' ],
+    primary_key => 'id',
+    unique => [],
+    views => {
+      all => [ 'name' ],
+      brief => [ 'name' ]
+    }
+  },
+
+  Asset_Option => {
+    table_db_name => 'asset_option',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      asset => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Asset',
+          method  => 'options',     # $asset->options   all defined options for this asset
+        },
+      },
+      asset_option_spec => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Asset_Option_Spec',
+          method  => 'instances',    # $opt_spec->instances   all options of this option spec
+        },
+      },
+      value => {
+        default => '',
+        description => '',
+        length => '4096',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+    },
+    description => 'Asset Option',
+    has_history => 0,
+    index => [['asset', 'asset_option_spec']],
+    isjoin => '0',
+    label => [ 'id' ],
+    primary_key => 'id',
+    unique => [],
+    views => {
+      all => [ 'id' ],
+      brief => [ 'id' ]
+    }
+  },
+
   Asset => {
     table_db_name => 'asset',
     columns => {
@@ -525,6 +675,32 @@ $meta = {
 	 tag => 'Product',
          type => 'bigint'
        },
+       location => {
+         default => '',
+         description => 'location key',
+         length => '',
+         nullable => 1,
+         linksto => {
+           cascade => 'Nullify',
+           method => 'assets',
+           table => 'Location'
+         },
+	 tag => 'Location',
+         type => 'bigint'
+       },
+      parent => {
+        default => '',
+        description => 'Another asset this one belongs to (or NULL).',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table => 'Asset',
+          method => 'children',      # $asset->children   children assets
+        },
+      },
        physaddr => {
          default => '',
          description => 'The base MAC address of this Asset.',
@@ -577,6 +753,8 @@ $meta = {
          'maint_contract',
          'maint_from',
          'maint_until',
+	 'parent',
+	 'location',
 	 'info',
       ],
       brief => ['serial_number', 'physaddr', 'product_id', 'inventory_number', 'maint_from', 'maint_until', 'reserved_for' ],
@@ -2004,6 +2182,7 @@ $meta = {
   Device => {
     table_db_name => 'device',
     columns => {
+# XXX pay attention
       asset_id => {
         default => '',
         description => 'asset fk',
@@ -2015,7 +2194,7 @@ $meta = {
           method => 'devices',
         },
         type => 'bigint',
-	tag => 'Asset',
+		tag => 'Asset',
       },
       aliases => {
         default => '',
@@ -2338,40 +2517,6 @@ $meta = {
         tag => 'Power #2',
         type => 'varchar'
       },
-      rack => {
-        default => '',
-        description => 'Rack ID where this Device is physically installed',
-        length => '32',
-        nullable => 1,
-        tag => 'Rack',
-        type => 'varchar'
-      },
-      room => {
-        default => '',
-        description => 'Room where this Device is installed',
-        length => '',
-        linksto => {
-          cascade => 'Nullify',
-          method => 'devices',
-          table => 'Room'
-        },
-        nullable => 1,
-        tag => 'Room',
-        type => 'bigint'
-      },
-      site => {
-        default => '',
-        description => 'Site or Building where this Device is located.  This is set manually.',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'devices',
-          table => 'Site'
-        },
-        nullable => 1,
-        tag => 'Site',
-        type => 'bigint'
-      },
       snmp_authkey => {
         default => '',
         description => 'SNMPv3 Authentication Key',
@@ -2600,7 +2745,6 @@ $meta = {
         'customer_managed',
         'community',
         'canautoupdate',
-        'site',
         'monitor_config',
         'monitor_config_group',
         'snmp_managed',
@@ -2625,15 +2769,13 @@ $meta = {
         'stp_mst_region',
         'stp_mst_rev',
 	'stp_mst_digest',
-        'room',
-        'rack',
         'last_updated',
         'date_installed',
 	'down_from',
         'down_until',
         'info'
       ],
-      brief => ['name', 'asset_id', 'site', 'snmp_target' ]
+      brief => ['name', 'asset_id', 'snmp_target' ]
     }
   },
   DeviceAttr => {
@@ -4016,74 +4158,6 @@ $meta = {
       ]
     }
   },
-  Floor => {
-    table_db_name => 'floor',
-    columns => {
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      info => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 1,
-        tag => 'Comments',
-        type => 'text'
-      },
-      level => {
-        default => '',
-        description => '',
-        length => '32',
-        nullable => 0,
-        tag => 'Level',
-        type => 'varchar'
-      },
-      site => {
-        default => '',
-        description => '',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'floors',
-          table => 'Site'
-        },
-        nullable => 0,
-        tag => 'Site',
-        type => 'bigint'
-      }
-    },
-    description => 'Floor Table',
-    has_history => 0,
-    index => [],
-    isjoin => '0',
-    label => [
-      'level',
-      'site'
-    ],
-    primary_key => 'id',
-    unique => [
-      [
-        'level',
-        'site'
-      ]
-    ],
-    views => {
-      all => [
-        'level',
-        'site',
-        'info'
-      ],
-      brief => [
-        'level',
-        'site'
-      ]
-    }
-  },
   GroupRight => {
     table_db_name => 'groupright',
     columns => {
@@ -5366,6 +5440,296 @@ $meta = {
       ]
     }
   },
+
+###### LOCATION
+
+  Location_Type => {
+    table_db_name => 'location_type',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      name => {
+        default => '',
+        description => '',
+        length => '64',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      description => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      magic => {  # 0x10  rack  0x21 rack front   0x24 rack back, maybe more magic in the future
+        default => 0,
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+    },
+    description => 'Location Type',
+    has_history => 0,
+    index => [],
+    isjoin => '0',
+    label => [ 'name' ],
+    primary_key => 'id',
+    unique => [ [ 'name' ] ],
+    views => {
+      all => [ 'name' ],
+      brief => [ 'name' ]
+    }
+  },
+
+  Location_Option_Spec => {
+    table_db_name => 'location_option_spec',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      location_type => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Location_Type',
+          method  => 'possible_options',    # $loc_type->possible_options   what options are possible for a given location type
+        },
+      },
+      name => {
+        default => '',
+        description => '',
+        length => '64',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      description => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      option_type => {
+        default => '',
+        description => '',
+        length => '30',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      selection => {
+        default => '',
+        description => '',
+        length => '4096',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      validator => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      defvalue => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      minint => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint'
+      },
+      maxint => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint'
+      },
+    },
+    description => 'Location Option Specification',
+    has_history => 0,
+    index => [['location_type']],
+    isjoin => '0',
+    label => [ 'name' ],
+    primary_key => 'id',
+    unique => [],
+    views => {
+      all => [ 'name' ],
+      brief => [ 'name' ]
+    }
+  },
+
+  Location => {
+    table_db_name => 'location',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      location_type => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Location_Type',
+          method  => 'locations',   # $loc_type->locations  all locations of this type
+        },
+      },
+      located_in => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 1,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table => 'Location',
+          method => 'contains',      # $loc->contains   locations contained in this one
+        },
+      },
+      name => {
+        default => '',
+        description => '',
+        length => '64',
+        nullable => 0,
+        tag => undef,
+        type => 'varchar'
+      },
+      description => {
+        default => '',
+        description => '',
+        length => '255',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+      info => {
+        default => '',
+        description => 'Comments',
+        length => '',
+        nullable => 1,
+        tag => 'Comments',
+        type => 'text'
+      },
+    },
+    description => 'Location',
+    has_history => 0,
+    index => [['location_type']],
+    isjoin => '0',
+    label => [ 'name' ],
+    primary_key => 'id',
+    unique => [ ],
+    views => {
+      all => [ 'name' ],
+      brief => [ 'name' ]
+    }
+  },
+
+  Location_Option => {
+    table_db_name => 'location_option',
+    columns => {
+      id => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint'
+      },
+      location => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Location',
+          method  => 'options',     # $loc->options   all defined options for this location
+        },
+      },
+      location_option_spec => {
+        default => '',
+        description => '',
+        length => '',
+        nullable => 0,
+        tag => undef,
+        type => 'bigint',
+        linksto => {
+          cascade => 'Delete',
+          table   => 'Location_Option_Spec',
+          method  => 'instances',    # $opt_spec->instances   all options of this option spec
+        },
+      },
+      value => {
+        default => '',
+        description => '',
+        length => '4096',
+        nullable => 1,
+        tag => undef,
+        type => 'varchar'
+      },
+    },
+    description => 'Location Option',
+    has_history => 0,
+    index => [['location', 'location_option_spec']],
+    isjoin => '0',
+    label => [ 'id' ],
+    primary_key => 'id',
+    unique => [],
+    views => {
+      all => [ 'id' ],
+      brief => [ 'id' ]
+    }
+  },
+
+######
+
   MaintContract => {
     table_db_name => 'maintcontract',
     columns => {
@@ -6022,6 +6386,22 @@ $meta = {
         tag => 'System ID',
         type => 'varchar'
       },
+       vsize => {
+         default => '',
+         description => 'Size of the product in units',
+         length => '',
+         nullable => 0,
+         tag => 'Unit size',
+         type => 'bigint'
+       },
+       hsize => {
+         default => '',
+         description => 'Horizontal space occupied by the product',
+         length => '',
+         nullable => 0,
+         tag => 'Horizontal size',
+         type => 'bigint'
+       },
       type => {
         default => '',
         description => 'Product Type. Types of network products include routers, switches, hubs, etc.',
@@ -6065,9 +6445,11 @@ $meta = {
         'description',
         'sysobjectid',
         'manufacturer',
-	'config_type',
+		'config_type',
         'part_number',
         'latest_os',
+		'vsize',
+		'hsize',
         'info'
       ],
       brief => [
@@ -7147,71 +7529,6 @@ $meta = {
       ]
     }
   },
-  Room => {
-    table_db_name => 'room',
-    columns => {
-      floor => {
-        default => '',
-        description => '',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'rooms',
-          table => 'Floor'
-        },
-        nullable => 0,
-        tag => 'Floor',
-        type => 'bigint'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      name => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'Number',
-        type => 'varchar'
-      }
-    },
-    description => 'Room',
-    has_history => 0,
-    index => [
-      [
-        'name'
-      ],
-      [
-        'floor'
-      ]
-    ],
-    isjoin => '0',
-    label => [
-      'floor', 'name'
-    ],
-    primary_key => 'id',
-    unique => [
-      [
-        'name',
-        'floor'
-      ]
-    ],
-    views => {
-      all => [
-        'name',
-        'floor'
-      ],
-      brief => [
-        'name',
-        'floor'
-      ]
-    }
-  },
   Service => {
     table_db_name => 'service',
     columns => {
@@ -7311,184 +7628,6 @@ $meta = {
       ],
       brief => [
         'version'
-      ]
-    }
-  },
-  Site => {
-    table_db_name => 'site',
-    columns => {
-      aliases => {
-        default => '',
-        description => 'Alternative names for this site',
-        length => '255',
-        nullable => 1,
-        tag => 'Aliases',
-        type => 'varchar'
-      },
-      availability => {
-        default => '',
-        description => 'Time Period during which people at this Site will be available',
-        length => '',
-        linksto => {
-          cascade => 'Nullify',
-          method => 'sites',
-          table => 'Availability'
-        },
-        nullable => 1,
-        tag => 'Availability',
-        type => 'bigint'
-      },
-      city => {
-        default => '',
-        description => 'City where this Site is located',
-        length => '64',
-        nullable => 1,
-        tag => 'City',
-        type => 'varchar'
-      },
-      contactlist => {
-        default => '',
-        description => 'List of contacts for this Site',
-        length => '',
-        linksto => {
-          cascade => 'Nullify',
-          method => 'sites',
-          table => 'ContactList'
-        },
-        nullable => 1,
-        tag => 'Contact List',
-        type => 'bigint'
-      },
-      country => {
-        default => '',
-        description => 'Country where this Site is located',
-        length => '64',
-        nullable => 1,
-        tag => 'Country',
-        type => 'varchar'
-      },
-      gsf => {
-        default => '',
-        description => 'Gross Square Footage of this site',
-        length => '',
-        nullable => 1,
-        tag => 'GSF',
-        type => 'integer'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      info => {
-        default => '',
-        description => 'User Comments',
-        length => '',
-        nullable => 1,
-        tag => 'Comments',
-        type => 'text'
-      },
-      name => {
-        default => '',
-        description => 'Name given to this site',
-        length => '64',
-        nullable => 0,
-        tag => 'Name',
-        type => 'varchar'
-      },
-      number => {
-        default => '',
-        description => 'A unique identifier for this Site within the organization',
-        length => '64',
-        nullable => 1,
-        tag => 'Site ID',
-        type => 'varchar'
-      },
-      pobox => {
-        default => '',
-        description => 'Post Office Box',
-        length => '32',
-        nullable => 1,
-        tag => 'P.O. Box',
-        type => 'varchar'
-      },
-      state => {
-        default => '',
-        description => 'State where this Site is located',
-        length => '32',
-        nullable => 1,
-        tag => 'State',
-        type => 'varchar'
-      },
-      street1 => {
-        default => '',
-        description => 'Street 1st line',
-        length => '128',
-        nullable => 1,
-        tag => 'Street (1)',
-        type => 'varchar'
-      },
-      street2 => {
-        default => '',
-        description => 'Street 2nd line',
-        length => '128',
-        nullable => 1,
-        tag => 'Street (2)',
-        type => 'varchar'
-      },
-      zip => {
-        default => '',
-        description => 'ZIP/Postal Code',
-        length => '16',
-        nullable => 1,
-        tag => 'Zip/Postal Code',
-        type => 'varchar'
-      }
-    },
-    description => 'A physical location such as a building or data center.',
-    has_history => 0,
-    index => [
-      [
-        'street1'
-      ],
-      [
-        'name'
-      ],
-      [
-        'number'
-      ]
-    ],
-    isjoin => '0',
-    label => [
-      'name', 'aliases'
-    ],
-    primary_key => 'id',
-    unique => [ ['name'], ['number'] ],
-    views => {
-      all => [
-        'name',
-        'number',
-        'gsf',
-        'aliases',
-        'street1',
-        'street2',
-        'pobox',
-        'city',
-        'state',
-        'zip',
-        'country',
-        'availability',
-        'contactlist',
-        'info'
-      ],
-      brief => [
-        'name',
-        'number',
-        'street1',
-        'city'
       ]
     }
   },

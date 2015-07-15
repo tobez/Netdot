@@ -1,0 +1,611 @@
+<%args>
+$user => $ui->get_current_user($r)
+$id => undef
+$select_id => undef
+$visible_id => undef
+$select_vsize => undef
+$select_hsize => undef
+</%args>
+
+<%once>
+use Netdot::Model::Location;
+use Netdot::Model::Location_Type;
+use Netdot::Model::Location_Option_Spec;
+use JSON::XS;
+</%once>
+
+<%init>
+my $manager = $ui->get_permission_manager($r);
+unless ( $manager && $manager->can($user, "access_section", 'location') ){
+    $m->comp('/generic/error.mhtml', error=>"You don't have permission to access this section");
+}
+my $netdot_path = $r->dir_config('NetdotPath');
+my @all_loc_types = Location_Type->retrieve_all;
+</%init>
+
+<link rel="StyleSheet" href="<% $netdot_path %>css/location.css" type="text/css" />
+<script language="JavaScript" src="<% $netdot_path %>java_script/location.js"></script>
+<script>
+<%perl>
+$m->print("netdot_path = '$netdot_path';\n");
+$m->print("view_loc_id = $id;\n") if defined $id;
+$m->print("select_id = \"$select_id\";\n") if defined $select_id;
+$m->print("visible_id = \"$visible_id\";\n") if defined $visible_id;
+$m->print("select_vsize = $select_vsize;\n") if defined $select_vsize;
+$m->print("select_hsize = $select_hsize;\n") if defined $select_hsize;
+for my $los (Location_Option_Spec->retrieve_all) {
+	my %los = (
+		defvalue      => $los->defvalue,
+		description   => $los->description,
+		id            => $los->id,
+		location_type => $los->location_type->id,
+		maxint        => $los->maxint,
+		minint        => $los->minint,
+		name          => $los->name,
+		option_type   => $los->option_type,
+		selection     => $los->selection,
+		validator     => $los->validator,
+	);
+	my $json_los = encode_json(\%los);
+	$m->print("new LocationOptionSpec($json_los);\n");
+}
+my @lot;
+for my $lot (@all_loc_types) {
+    push @lot, { id => $lot->id, name => $lot->name, magic => $lot->magic };
+}
+my $json_lot = encode_json(\@lot);
+$m->print("LOT = $json_lot;\n");
+</%perl>
+</script>
+
+<%def .loc_opt>
+  <%args>
+    $spec
+    $what
+  </%args>
+  <%perl>
+	my $view_id = "loc_opt_view_$spec->{id}";
+	my $edit_id = "loc_opt_edit_$spec->{id}";
+	my $create_id = "loc_opt_create_$spec->{id}";
+	my $view_container_id = "loc_opt_view_container_$spec->{id}";
+	my $edit_container_id = "loc_opt_edit_container_$spec->{id}";
+	my $create_container_id = "loc_opt_create_container_$spec->{id}";
+	if ($what eq "view") {
+	} elsif ($what eq "edit") {
+	} elsif ($what eq "create") {
+	} elsif ($what eq "structure") {
+		my $this_spec = {
+			view_id             => $view_id,
+			edit_id             => $edit_id,
+			create_id           => $create_id,
+			view_container_id   => $view_container_id,
+			edit_container_id   => $edit_container_id,
+			create_container_id => $create_container_id,
+		};
+  </%perl>
+       <script>
+		spec[<%$spec->{id}%>] = {
+			
+		};
+       </script>
+  <%perl>
+	}
+  </%perl>
+</%def>
+%#           if ($po->option_type eq "text") {
+%#	        <input type="text" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="" />
+%#           } elsif ($po->option_type eq "int") {
+%#	        <input type="text" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="" />
+%#           } elsif ($po->option_type eq "bool") {
+%#                <input type="checkbox" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="1">
+%#           } elsif ($po->option_type eq "select") {
+%#                <select name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>">
+%#                 for my $sel (split /\|/, $po->selection) {
+%#                    <option value="<% $sel %>"><% $sel %></option>
+%#                 }
+%#                </select>
+%#           }
+  <%init>
+    #my @children = $loc ? $loc->contains : Location->roots;
+  </%init>
+
+<script>
+locs = {
+    "root": {
+	has_children : 1,
+	id : 0,
+	location_type : { id : 0, name : "root", magic: 64 },
+	name : "Root",
+	description : null,
+	info : "",
+        possible_options : [],
+        options : [],
+	assets : []
+    }
+};
+</script>
+<div id="sectiontools">
+ <div class="container location_selector">
+    <div class="containerheadleft">
+        Locations
+    </div>
+    <div class="containerheadright">
+		<a id="loc_browse_link" href="#">[browse]</a>
+		<a id="loc_search_link" href="#">[search]</a>
+    </div>
+%#    <div class="containerbody" id="debug"><& '.print_tree', loc => undef &></div>
+    <div class="containerbody" id="tree_div">
+%# <& '.print_tree', loc => undef &>
+    </div>
+    <div class="containerbody" id="search_div" style="display:none;">
+      <fieldset class="medium">
+            <legend>Find Locations</legend>
+            <form action="#">
+                <p>
+                <label for="location_search">Name:</label>
+                <input type="text" id="location_search" name="location_search" class="longtxt" value="">
+                <input name="submit" value="Find" class="btn" type="submit">
+                </p>
+            </form>
+        </fieldset>
+    </div>
+ </div>
+ <div class="container loc_info_div" style="display:none;" id="loc_info_div_0">
+    <div class="containerheadleft">
+        Root location
+    </div>
+    <div class="containerheadright">
+		<a id="loc_info_edit_link_0" href="#">[edit]</a>
+		<a id="loc_info_create_link_0" href="#">[new]</a>
+        <input id="loc_info_cancel_0" type="button" name="cancel_button" value="cancel">
+        <input id="loc_info_save_0" type="submit" name="submit" value="save">
+        <input id="loc_info_create_0" type="submit" name="submit" value="create">
+    </div>
+    <div class="containerbody">
+      <div class="loc_create_div" style="display:none;">
+        <form name="loc_create_form_0" id="loc_create_form_0">
+          <table>
+          <tr><td>Location type:</span></td><td>
+		  <select name="loc_edit_type" id="loc_edit_type">
+%           for my $lt (@all_loc_types) {
+              <option value="<% $lt->id %>"><% $lt->name %></option>
+%           }
+          </select>
+		 </td></tr>
+         </table>
+%        for my $lt (@all_loc_types) {
+           <div class="loc_create_fields_div" id="loc_create_fields_div_<% $lt->id %>"><table>
+             <& '.options', lt => $lt, prefix => "0_" &>
+		   </table></div>
+%        }
+        </form>
+      </div>
+    </div>
+ </div>
+ <div class="container" id="middle_panel" style="display:none">
+    <div class="containerheadleft">
+        No results
+    </div>
+    <div class="containerheadright">&nbsp;</div>
+    <div class="containerbody">
+    </div>
+ </div>
+ <div class="containerbodyoutside" id="bottom_panel" style="display:none">
+  <form>
+   <div class="container">
+    <div class="containerheadleft"></div>
+    <div class="containerheadright"></div>
+    <div class="containerbody"></div>
+   </div>
+  </form>
+ </div>
+% for my $lt (@all_loc_types) {
+ <div class="container loc_info_div" style="display:none;" id="loc_info_div_<% $lt->id %>">
+    <div class="containerheadleft">
+        Location information
+    </div>
+    <div class="containerheadright">
+		<a id="loc_info_edit_link_<% $lt->id %>" href="#">[edit]</a>
+		<a id="loc_info_create_link_<% $lt->id %>" href="#">[new]</a>
+        <input id="loc_info_cancel_<% $lt->id %>" type="button" name="cancel_button" value="cancel">
+        <input id="loc_info_save_<% $lt->id %>" type="submit" name="submit" value="save">
+        <input id="loc_info_create_<% $lt->id %>" type="submit" name="submit" value="create">
+    </div>
+    <div class="containerbody">
+      <div class="loc_view_div">
+          <table>
+          <tr><td><span class="loc_type_name"></span></td>
+	  <td><span id="loc_view_name_<% $lt->id %>"></span></td></tr>
+%         for my $po ($lt->possible_options) {
+%           my $id = $lt->id . "_" . $po->id;
+            <tr><td><% $po->description %></td><td>
+            <span id="loc_view_field_<% $id %>"></span>
+          </td></tr>
+%         }
+         </table>
+      </div>
+      <div class="loc_edit_div" style="display:none;">
+        <form name="loc_edit_form_<% $lt->id %>" id="loc_edit_form_<% $lt->id %>">
+          <table>
+          <tr><td><span class="loc_type_name"></span></td>
+	  <td><input type="text" name="loc_edit_name_<% $lt->id %>" id="loc_edit_name_<% $lt->id %>" value="" /></td></tr>
+        <& '.options', lt => $lt, prefix => "" &>
+         </table>
+        </form>
+     </div>
+    </div>
+ </div>
+% }
+</div>
+<script>
+$(function () {
+	if (view_loc_id && !select_id)
+	    $("div.location_selector").hide();
+	var reset_location_values = function ($div, loc) {
+        var type_id = loc.location_type.id;
+        $div.find("span.loc_type_name").text(loc.location_type.name);
+        $("#loc_edit_name_" + type_id).val(loc.name);
+        $("#loc_view_name_" + type_id).text(loc.name);
+
+        var po = loc.possible_options;
+        for (var i = 0; i < po.length; i++) {
+            if (po[i].defvalue != null) {
+                var $fv = $("#loc_view_field_" + type_id + "_" + po[i].id);
+                var $fe = $("#loc_edit_field_" + type_id + "_" + po[i].id);
+                if (po[i].option_type == "text") {
+                    $fv.text(po[i].defvalue);
+                    $fe.val(po[i].defvalue);
+                } else if (po[i].option_type == "int") {
+                    $fv.text(po[i].defvalue);
+                    $fe.val(po[i].defvalue);
+                } else if (po[i].option_type == "bool") {
+                    $fv.text(po[i].defvalue ? "yes" : "no");
+                    $fe.prop("checked", po[i].defvalue);
+                } else if (po[i].option_type == "select") {
+                    $fv.text(po[i].defvalue);
+                    $fe.val(po[i].defvalue);
+                }
+            }
+        }
+
+        var o = loc.options;
+        for (var i = 0; i < o.length; i++) {
+			var $fv = $("#loc_view_field_" + type_id + "_" + o[i].option_spec_id);
+            var $fe = $("#loc_edit_field_" + type_id + "_" + o[i].option_spec_id);
+            if (o[i].option_type == "text") {
+				$fv.text(o[i].value);
+                $fe.val(o[i].value);
+            } else if (o[i].option_type == "int") {
+				$fv.text(o[i].value);
+                $fe.val(o[i].value);
+            } else if (o[i].option_type == "bool") {
+				$fv.text(o[i].value ? "yes" : "no");
+                $fe.prop("checked", o[i].value);
+            } else if (o[i].option_type == "select") {
+				$fv.text(o[i].value);
+                $fe.val(o[i].value);
+            }
+        }
+	};
+
+	var update_location_values = function ($div, loc) {
+        var type_id = loc.location_type.id;
+        $div.find("span.loc_type_name").text(loc.location_type.name);
+        loc.name = $("#loc_edit_name_" + type_id).val();
+
+		var seen = {};
+        var o = loc.options;
+        for (var i = 0; i < o.length; i++) {
+			seen[o[i].option_spec_id] = true;
+
+            var $fe = $("#loc_edit_field_" + type_id + "_" + o[i].option_spec_id);
+            if (o[i].option_type == "text") {
+                o[i].value = $fe.val();
+            } else if (o[i].option_type == "int") {
+                o[i].value = $fe.val();
+            } else if (o[i].option_type == "bool") {
+                o[i].value = $fe.prop("checked") ? "yes" : "no";
+            } else if (o[i].option_type == "select") {
+                o[i].value = $fe.val();
+            }
+        }
+
+        var po = loc.possible_options;
+        for (var i = 0; i < po.length; i++) {
+			if (seen[po[i].id])
+				continue;
+			var val = "";
+			var $fe = $("#loc_edit_field_" + type_id + "_" + po[i].id);
+            if (po[i].option_type == "text") {
+                val = $fe.val();
+			} else if (po[i].option_type == "int") {
+                val = $fe.val();
+			} else if (po[i].option_type == "bool") {
+                val = $fe.prop("checked") ? "yes" : "no";
+			} else if (po[i].option_type == "select") {
+                val = $fe.val();
+			}
+			if (val != "") {
+				o[o.length] = {
+					"value": val,
+					"option_spec_id": po[i].id,
+					"option_type": po[i].option_type
+					// "id" is not needed for new options
+				};
+			}
+        }
+	};
+
+	var remote_get = function(what, data, func)
+	{
+	    jQuery.get("/netdot/rest/location/" + what, data, function (r) {
+		       func(r);
+	    }, "json");
+	};
+
+	$("#loc_browse_link").click(function () {
+		$("#search_div").hide();
+		$("#tree_div").jstree("refresh");
+		$("#tree_div").show();
+		$("#middle_panel").hide();
+		$("#bottom_panel").hide();
+		return false;
+	});
+	$("#loc_search_link").click(function () {
+		$("#search_div").show();
+		$("#tree_div").hide();
+		$("#middle_panel").hide();
+		$("#bottom_panel").hide();
+		return false;
+	});
+
+	$("#search_div").find("form").submit(function () {
+	    remote_get("", { "search" : $("#location_search").val() }, function (rr) {
+		var r;
+		r = jQuery.isArray(rr) ? rr : [r];
+		var n = r.length;
+		if (n) {
+		    $("#middle_panel").find(".containerheadleft").text("");
+		    if (n > 1)
+		    	$("#middle_panel").find(".containerheadleft").append(n + " results for <em></em>");
+		    else
+		    	$("#middle_panel").find(".containerheadleft").append(n + " result for <em></em>");
+		    $("#middle_panel").find(".containerheadleft").find("em").text($("#location_search").val());
+		    $("#middle_panel").find(".containerbody").text("");
+		    var $list = $("<div class='location_list'></div>");
+		    var $head = $("<div class='location_row header'></div>");
+		    $head.append("<span class='location_col type'><b>Type</b></span>");
+		    $head.append("<span class='location_col name'><b>Name</b></span>");
+		    $list.append($head);
+		    for (var i = 0; i < n; i++) {
+			locs[r[i].id] = r[i];
+			var loc = new Location(locs[r[i].id]);
+			loc.list($list);
+		    }
+		    $("#middle_panel").find(".containerbody").append($list);
+		} else {
+		    $("#middle_panel").find(".containerheadleft").text("No results");
+		    $("#middle_panel").find(".containerbody").text("");
+		    $("#middle_panel").find(".containerbody").append("<em></em> not found");
+		    $("#middle_panel").find(".containerbody").find("em").text($("#location_search").val());
+		}
+		$("#middle_panel").show();
+	    });
+	    return false;
+	});
+
+	$("#tree_div").jstree({
+		'core' : {
+			'data' : function (obj, cb) {
+				var m_this = this;
+				var node = obj;
+				if (node.id === "#") {
+					cb.call(m_this, [{text:"[..root..]", children: true, id: "root" }]);
+				} else {
+					var what = node.id == "root" ? "roots" : "?located_in=" + node.id;
+					remote_get(what, {}, function (rr) {
+						var r;
+						r = jQuery.isArray(rr) ? rr : [r];
+						var tree = [];
+						var n = r.length;
+						for (var i = 0; i < n; i++) {
+							tree[i] = {};
+							tree[i].text = r[i].name;
+							tree[i].children = r[i].has_children ? true : false;
+							tree[i].id = r[i].id;
+							locs[r[i].id] = r[i];
+						}
+						cb.call(m_this, tree);
+					});
+				}
+			}
+		}
+	});
+
+    if (view_loc_id) {
+	// $("#sectiontools").hide();
+	remote_get(view_loc_id, {}, function (r) {
+	    if (r.location_type.magic & 0x20) {
+		remote_get(r.located_in, {}, function (r) {
+		    locs[r.id] = r;
+		    var loc = new Location(locs[r.id]);
+		    loc.view($("#bottom_panel"), {"highlight": view_loc_id});
+		});
+	    } else {
+		locs[r.id] = r;
+		var loc = new Location(locs[r.id]);
+		loc.view($("#bottom_panel"));
+	    }
+	});
+    }
+
+    $('#tree_div').on("changed.jstree", function (e, data) {
+        var loc_id = ("" + data.selected).replace("loc_","");
+	if (!loc_id) loc_id = "root";
+	if (!locs[loc_id]) return;
+		/*
+        $(".loc_info_div").hide();
+		$(".loc_edit_div").hide();
+		$(".loc_view_div").show();  // "view" is the default
+		$(".loc_create_div").hide();
+		*/
+        var loc = new Location(locs[loc_id]);
+	loc.view($("#bottom_panel"));
+	return; // XXX XXX XXX XXX
+        var type_id = loc.location_type.id;
+        var $div = $("#loc_info_div_" + type_id);
+
+		var $edit_link = $("#loc_info_edit_link_" + type_id);
+		var $create_link = $("#loc_info_create_link_" + type_id);
+		var $cancel_button = $("#loc_info_cancel_" + type_id);
+		var $save_button = $("#loc_info_save_" + type_id);
+		var $create_button = $("#loc_info_create_" + type_id);
+		$edit_link.show();
+		if (loc_id == "root") {
+			$edit_link.hide();
+		} else {
+			$edit_link.show();
+		}
+		$create_link.show();
+		$cancel_button.hide();
+		$save_button.hide();
+		$create_button.hide();
+
+		$edit_link.click(function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			$(".loc_edit_div").show();
+			$(".loc_view_div").hide();
+			$(".loc_create_div").hide();
+			$edit_link.hide();
+			$create_link.hide();
+			$cancel_button.show();
+			$save_button.show();
+			$create_button.hide();
+		});
+		$create_link.click(function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			$(".loc_edit_div").hide();
+			$(".loc_view_div").hide();
+			$(".loc_create_div").show();
+			$edit_link.hide();
+			$create_link.hide();
+			$cancel_button.show();
+			$save_button.hide();
+			$create_button.show();
+			$(".loc_create_fields_div").hide();
+			$("#loc_create_fields_div_" + $("#loc_edit_type").val()).show();
+		});
+		$("#loc_edit_type").change(function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			$(".loc_create_fields_div").hide();
+			$("#loc_create_fields_div_" + $("#loc_edit_type").val()).show();
+		});
+		$cancel_button.click(function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			reset_location_values($div, loc);
+			$(".loc_edit_div").hide();
+			$(".loc_view_div").show();
+			$(".loc_create_div").hide();
+			if (loc_id == "root") {
+				$edit_link.hide();
+			} else {
+				$edit_link.show();
+			}
+			$create_link.show();
+			$cancel_button.hide();
+			$save_button.hide();
+			$create_button.hide();
+		});
+		$save_button.click(function (ev) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			update_location_values($div, loc);
+			remote_post(loc, function (r) {
+				locs[r.id] = r;
+				reset_location_values($div, loc);
+			});
+			$(".loc_edit_div").hide();
+			$(".loc_view_div").show();
+			if (loc_id == "root") {
+				$edit_link.hide();
+			} else {
+				$edit_link.show();
+			}
+			$create_link.show();
+			$cancel_button.hide();
+			$save_button.hide();
+			$create_button.hide();
+		});
+
+		reset_location_values($div, loc);
+
+        $div.show();
+    });
+});
+</script>
+
+<%def .options>
+  <%args>
+    $lt
+    $prefix
+  </%args>
+%         for my $po ($lt->possible_options) {
+%           my $id = $prefix . $lt->id . "_" . $po->id;
+            <tr><td><% $po->description %></td><td>
+%           if ($po->option_type eq "text") {
+	        <input type="text" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="" />
+%           } elsif ($po->option_type eq "int") {
+	        <input type="text" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="" />
+%           } elsif ($po->option_type eq "bool") {
+                <input type="checkbox" name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>" value="1">
+%           } elsif ($po->option_type eq "select") {
+                <select name="loc_edit_field_<% $id %>" id="loc_edit_field_<% $id %>">
+%                 for my $sel (split /\|/, $po->selection) {
+                    <option value="<% $sel %>"><% $sel %></option>
+%                 }
+                </select>
+%           }
+          </td></tr>
+%         }
+</%def>
+
+<%def .print_tree>
+  <%args>
+    $loc
+  </%args>
+  <%init>
+    my @children = $loc ? $loc->contains : Location->roots;
+  </%init>
+  <%perl>
+# $m->print("<pre>children dump:\n");
+# $m->print(YAML::Dump(\@children));
+# $m->print("</pre>");
+    $m->print("<ul>") if @children;
+    for my $kid (@children) {
+        $m->print("<li id='loc_" . $kid->id . "'>");
+        $m->print($kid->name);
+        $m->print("<script>locs[" . $kid->id . "]=" . $kid->as_json . ";</script>");
+        $m->comp('.print_tree', loc => $kid);
+        $m->print("</li>");
+    }
+    $m->print("</ul>") if @children;
+  </%perl>
+</%def>
+
+<%method .section_meta_data>
+    <%doc>
+        Returns the meta data used to generate this sections header
+    </%doc>
+    <%init>
+        return {  
+	    section      => 'Location',
+	    page         => 'location/',
+	    title        => 'Locations',
+	    attribute    => 'LOCATION_PAGE',
+        };
+    </%init>
+</%method>

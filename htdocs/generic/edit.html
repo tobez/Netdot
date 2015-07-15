@@ -140,6 +140,46 @@ if ( $table ){
 		    if ( $state_digest && ($state_digest ne $new_digest) ){
 			$ui->throw_user('This object changed while you were editing!');
 		    }
+		    if (lc $table eq "asset") {
+			use Netdot::Model::Asset_Option;
+my $dbg = sub {
+	return;
+	if (open my $fh, ">>", "/tmp/netdot.asset.debug") {
+		print $fh scalar(localtime), ": @_\n";
+	}
+};
+			my %new_opts;
+			for my $k (keys %args) {
+			    next unless $k =~ /^aos_(\d+)$/;
+			    $new_opts{$1} = delete $args{$k};
+			}
+			my @opts = $obj->options;
+			for my $opt (@opts) {
+			    my $v = delete $new_opts{$opt->asset_option_spec->id};
+			    if (defined $v && $v ne "") {
+				# update option
+$dbg->("updating option: ", $opt->id, ", aos: ", $opt->asset_option_spec->id,
+    ", asset: ", $opt->asset->id, ", value: ", $opt->value, ", new value: $v");
+				$opt->value($v);
+				$opt->update(value => $v);
+			    } else {
+				# delete option
+$dbg->("deleting option: ", $opt->id, ", aos: ", $opt->asset_option_spec->id,
+    ", asset: ", $opt->asset->id, ", value: ", $opt->value);
+				$opt->delete;
+			    }
+			}
+			# insert remaining options
+			for my $aos_id (keys %new_opts) {
+			    my $v = $new_opts{$aos_id};
+			    if (defined $v && $v ne "") {
+				# actually insert option
+$dbg->("inserting option, aos: ", $aos_id,
+    ", asset: ", $obj->id, ", value: ", $v);
+				Asset_Option->insert({ asset => $obj->id, asset_option_spec => $aos_id, value => $v });
+			    }
+			}
+		    }
 		    $ui->check_value_lengths($table, \%args);
 		    $obj->update(\%args);
 					       });

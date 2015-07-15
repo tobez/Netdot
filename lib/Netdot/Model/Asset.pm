@@ -15,6 +15,25 @@ my $installed = Asset->get_installed_hash();
 =head1 CLASS METHODS
 =cut
 
+__PACKAGE__->add_constraint('Asset_Parent_Loop_Detection', parent => \&detect_parent_loop);
+
+sub detect_parent_loop
+{
+    my ($parent_id, $self, $column_name, $changing) = @_;
+
+	return 1 unless $parent_id;  # no parent, all is good
+	while (1) {
+		return 0 if $parent_id == $self->id;  # we have a loop!
+		my $parent = Asset->retrieve($parent_id);
+		# Once we have parent id, the corresponding asset should be at least retrievable.
+		return 0 unless $parent;
+		$parent = $parent->parent;
+		return 1 unless $parent;
+		$parent_id = $parent->id;
+	}
+	return 0;  # unreachable
+}
+
 ###########################################################################
 
 =head2 get_installed_hash - Build a hash of installed assets keyed by id

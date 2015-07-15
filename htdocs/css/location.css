@@ -1,0 +1,164 @@
+div.location_view {
+	display: table;
+}
+
+div.location_edit {
+	display: table;
+}
+
+div.location_create {
+	display: table;
+}
+
+div.vtf {
+	display: table-row;
+}
+
+span.vtf_descr {
+	display: table-cell;
+	padding-left: 4px;
+}
+
+span.vtf_val {
+	display: table-cell;
+	padding-left: 15px;
+}
+
+div.etf {
+	display: table-row;
+}
+
+select.esf {
+	width: 150px;
+}
+
+span.etf_descr {
+	display: table-cell;
+	padding-left: 4px;
+}
+
+span.etf_val {
+	display: table-cell;
+	padding-left: 15px;
+}
+
+div.location_list {
+    margin-left: 5px;
+    margin-bottom: 5px;
+    margin-top: 5px;
+    display: table;
+    width: 100%;
+}
+
+div.location_row {
+    border: none;
+    width: 100%;
+    display: table-row;
+    background-color: #ffffee;
+}
+
+div.location_row.header {
+    background-color: #aaccaa;
+}
+
+div.location_row:nth-child(even) {
+    background-color: #ddeedd;
+}
+
+span.location_col {
+    border: none;
+    display: table-cell;
+}
+
+span.location_col.type {
+    width: 20%;
+}
+
+span.location_col.name {
+    width: 80%;
+}
+
+table.rack_diagram {
+    margin-left: 5px;
+    margin-bottom: 5px;
+    margin-top: 5px;
+    border-top: 1px solid black;
+    border-left: 1px solid black;
+    width: 370px;
+}
+
+tr.rack_row {
+	border: none;
+	width: 370px;
+}
+
+td.rackpos_num {
+	border-bottom: 1px solid black;
+	border-right: 1px solid black;
+	width: 20px;
+	max-width: 20px;
+}
+
+td.rackpos {
+	border-bottom: 1px solid black;
+	border-right: 1px solid black;
+	background-color: #ddeedd;
+	text-align: center;
+	vertical-align: middle;
+}
+
+td.rackpos.header {
+    background-color: #ffffee;
+}
+
+td.extra_header {
+    background-color: #aaccaa;
+    border-bottom: 1px solid black;
+    border-right: 1px solid black;
+    text-align: left;
+    vertical-align: middle;
+}
+
+td.rackpos.front {
+	width: 50px;
+	max-width: 150px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+td.rackpos.interior {
+	width: 250px;
+	max-width: 50px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+td.rackpos.back {
+	width: 50px;
+	max-width: 150px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+td.rackpos.occupied {
+	background-color: #aaccaa;
+}
+
+td.rackpos.highlighted {
+	background-color: #ff69b4; /* hot pink :) */
+}
+
+span.mock {
+    background-color: #ff69b4; /* hot pink :) */
+}
+
+.manyracks {
+    overflow-x: scroll;
+    width: auto;
+    white-space: nowrap;
+}
+
+.manyracks table {
+    display: inline-table;
+}
+

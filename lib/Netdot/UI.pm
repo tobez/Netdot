@@ -43,6 +43,7 @@ my %VIEWPAGE = ( ClosetPicture => "../generic/display_bin.html",
 		 DhcpScope     => "../management/scope.html",
 		 Interface     => "../management/interface.html",
 		 Ipblock       => "../management/ip.html",
+		 Location      => "../location/",
 		 PhysAddr      => "../management/mac.html",
 		 RR            => "../management/host.html",
 		 Zone          => "../management/zone.html",
@@ -558,6 +559,7 @@ sub select_lookup{
     	$output .= $defaults[0]->get_label;
     } elsif( $args{edit} ){
         my ($count, @fo);
+
         if ( @defaults ){
             @fo = @defaults;
             $count = scalar(@fo);
@@ -568,10 +570,39 @@ sub select_lookup{
             $count = $args{lookup}->count_all;
         }
         
+	# handle specialcases first
+	if (lc $args{lookup} eq "location") {
+		$args{new_button} = 0;
+		if ($o && $o->parent) {
+			$output .= "(assets with parent cannot have a location)";
+		} else {
+			#use Data::Dumper;
+			#open my $fh, ">>", "/tmp/netdot.debug";
+			#print $fh scalar(localtime), ": UI.pm form, location, arguments: ", Dumper(\%args), "\n";
+			#close $fh;
+#         var url = "edit.html?showheader=0&"+edit_args;
+			#                 openwindow(url);
+			#
+			#  XXX want product vsize/hsize
+			my $id = $o && $o->location ? $o->location->id : "";
+			my $pass_id = $id ? "&id=$id" : "";
+			my $label = $id ? $o->$column->get_label : "[select new location]";
+			my $select_vsize = "";
+			my $select_hsize = "";
+			if ($o && $o->product_id) {
+				$select_vsize = "&select_vsize=" . $o->product_id->vsize;
+				$select_hsize = "&select_hsize=" . $o->product_id->hsize;
+			}
+			$output .= qq|<input type="hidden" id="$name" name="$name" value="$id">|;
+			$output .= qq|<a id="visible_$name" class="hand" onClick="openwindow('|.
+				qq|$args{linkPage}?select_id=$name$pass_id&visible_id=visible_$name&showheader=0&selected=1&dowindow=1|.
+				qq|$select_vsize$select_hsize');">$label</a>|;
+		}
+	}
         # if the selected objects are within our limits,
 	# or if we've been passed a specific default list, 
 	# show the select box.
-        if ( $count <= $args{maxCount} || @defaults ){
+        elsif ( $count <= $args{maxCount} || @defaults ){
             if ( !$args{where} && !@defaults ){
 		@fo = $args{lookup}->retrieve_all();
 	    }

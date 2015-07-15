@@ -1,3 +1,4 @@
+#! /usr/bin/env perl
 # Updates the Netdot database
 
 use warnings;
@@ -37,6 +38,7 @@ if ( $schema_version eq '1.0.1' ){
     &upg_104_105();
     &upg_105_106();
     &upg_106_107();
+    &upg_107_108();
     
 }elsif ( $schema_version eq '1.0.2' ){
     
@@ -45,6 +47,7 @@ if ( $schema_version eq '1.0.1' ){
     &upg_104_105();
     &upg_105_106();
     &upg_106_107();
+    &upg_107_108();
     
 }elsif ( $schema_version eq '1.0.3' ){
     
@@ -52,26 +55,38 @@ if ( $schema_version eq '1.0.1' ){
     &upg_104_105();
     &upg_105_106();
     &upg_106_107();
+    &upg_107_108();
 
 }elsif ( $schema_version eq '1.0.4' ){
     
     &upg_104_105();
     &upg_105_106();
     &upg_106_107();
+    &upg_107_108();
     
 }elsif ( $schema_version eq '1.0.5' ){
     
     &upg_105_106();
     &upg_106_107();
+    &upg_107_108();
     
 }elsif ( $schema_version eq '1.0.6' ){
     
     &upg_106_107();
+    &upg_107_108();
+
+}elsif ( $schema_version eq '1.0.7' ){
+    
+    &upg_107_108();
     
 }else{
     die "Unsupported version for this upgrade: $schema_version\n";
 }
 
+for (@statements) {
+	print "$_\n";
+}
+exit(2);
 &processdata(\@statements);
 &dbdisconnect();
 
@@ -80,83 +95,83 @@ if ( $schema_version eq '1.0.1' ){
 sub upg_101_102 {
 
     if ( $dbms eq 'mysql' ) {
-	
-	# Try to speed up the conversion as much as possible
-	push @statements, 
-	"SET FOREIGN_KEY_CHECKS = 0;",
-	"SET AUTOCOMMIT = 0;";
-	
-	# Add a new unique constraint to avoid devices with same name. 
-	# Requires renaming existing indexes to be consistent with newly generated 
-	# schema in this version
-	push @statements, 
+        
+        # Try to speed up the conversion as much as possible
+        push @statements, 
+        "SET FOREIGN_KEY_CHECKS = 0;",
+        "SET AUTOCOMMIT = 0;";
+        
+        # Add a new unique constraint to avoid devices with same name. 
+        # Requires renaming existing indexes to be consistent with newly generated 
+        # schema in this version
+        push @statements, 
 
-	'ALTER TABLE device DROP foreign key fk_used_by;',
-	'ALTER TABLE device DROP foreign key fk_owner_1;',
+        'ALTER TABLE device DROP foreign key fk_used_by;',
+        'ALTER TABLE device DROP foreign key fk_owner_1;',
 
-	'ALTER TABLE device DROP INDEX `Device2`;',
-	'ALTER TABLE device DROP INDEX `Device3`;',
-	'ALTER TABLE device DROP INDEX `Device4`;',
-	'ALTER TABLE device DROP INDEX `Device5`;',
-	'ALTER TABLE device DROP INDEX `Device6`;',
-	'ALTER TABLE device DROP INDEX `Device7`;',
-	'ALTER TABLE device DROP INDEX `Device8`;',
+        'ALTER TABLE device DROP INDEX `Device2`;',
+        'ALTER TABLE device DROP INDEX `Device3`;',
+        'ALTER TABLE device DROP INDEX `Device4`;',
+        'ALTER TABLE device DROP INDEX `Device5`;',
+        'ALTER TABLE device DROP INDEX `Device6`;',
+        'ALTER TABLE device DROP INDEX `Device7`;',
+        'ALTER TABLE device DROP INDEX `Device8`;',
 
-	'ALTER TABLE device ADD UNIQUE INDEX `device2` (`name`);',
-	
-	'ALTER TABLE device ADD INDEX `Device3` (`used_by`);',
-	'ALTER TABLE device ADD INDEX `Device4` (`owner`);',
-	'ALTER TABLE device ADD INDEX `Device5` (`os`);',
-	'ALTER TABLE device ADD INDEX `Device6` (`sysname`);',
-	'ALTER TABLE device ADD INDEX `Device7` (`down_from`);',
-	'ALTER TABLE device ADD INDEX `Device8` (`down_until`);',
-	'ALTER TABLE device ADD INDEX `Device9` (`extension`);',
+        'ALTER TABLE device ADD UNIQUE INDEX `device2` (`name`);',
+        
+        'ALTER TABLE device ADD INDEX `Device3` (`used_by`);',
+        'ALTER TABLE device ADD INDEX `Device4` (`owner`);',
+        'ALTER TABLE device ADD INDEX `Device5` (`os`);',
+        'ALTER TABLE device ADD INDEX `Device6` (`sysname`);',
+        'ALTER TABLE device ADD INDEX `Device7` (`down_from`);',
+        'ALTER TABLE device ADD INDEX `Device8` (`down_until`);',
+        'ALTER TABLE device ADD INDEX `Device9` (`extension`);',
 
-	'ALTER TABLE device ADD CONSTRAINT `fk_owner_1` FOREIGN KEY (`owner`) REFERENCES `entity` (`id`);',
-	'ALTER TABLE device ADD CONSTRAINT `fk_used_by` FOREIGN KEY (`used_by`) REFERENCES `entity` (`id`);',
+        'ALTER TABLE device ADD CONSTRAINT `fk_owner_1` FOREIGN KEY (`owner`) REFERENCES `entity` (`id`);',
+        'ALTER TABLE device ADD CONSTRAINT `fk_used_by` FOREIGN KEY (`used_by`) REFERENCES `entity` (`id`);',
 
-	"UPDATE schemainfo SET version='1.0.2' WHERE id=1;",
-	"DELETE FROM datacache;";
-	
-	# Restore checks
-	push @statements, "SET FOREIGN_KEY_CHECKS = 1;", 
-	"COMMIT;",
-	"SET AUTOCOMMIT=1;";
-	
+        "UPDATE schemainfo SET version='1.0.2' WHERE id=1;",
+        "DELETE FROM datacache;";
+        
+        # Restore checks
+        push @statements, "SET FOREIGN_KEY_CHECKS = 1;", 
+        "COMMIT;",
+        "SET AUTOCOMMIT=1;";
+        
     }elsif ( $dbms eq 'Pg' ){
-	
-	# IDs were erroneously created as "serial" instead of "bigserial"
-	foreach my $table_name ( $dbh->tables('', 'public', '%', '') ){
-	    push @statements, "ALTER TABLE $table_name ALTER COLUMN id TYPE bigint;";
-	}
-	
-	# Add a new unique constraint to avoid devices with same name. 
-	# Requires renaming existing indexes to be consistent with newly generated 
-	# schema in this version
-	push @statements, 
-	'DROP INDEX "Device2";',
-	'DROP INDEX "Device3";',
-	'DROP INDEX "Device4";',
-	'DROP INDEX "Device5";',
-	'DROP INDEX "Device6";',
-	'DROP INDEX "Device7";',
-	'DROP INDEX "Device8";',
-	
-	'ALTER TABLE device ADD CONSTRAINT "device2" UNIQUE ("name");',
-	
-	'CREATE INDEX "Device3" on "device" ("used_by");',
-	'CREATE INDEX "Device4" on "device" ("owner");',
-	'CREATE INDEX "Device5" on "device" ("os");',
-	'CREATE INDEX "Device6" on "device" ("sysname");',
-	'CREATE INDEX "Device7" on "device" ("down_from");',
-	'CREATE INDEX "Device8" on "device" ("down_until");',
-	'CREATE INDEX "Device9" on "device" ("extension");',
+        
+        # IDs were erroneously created as "serial" instead of "bigserial"
+        foreach my $table_name ( $dbh->tables('', 'public', '%', '') ){
+            push @statements, "ALTER TABLE $table_name ALTER COLUMN id TYPE bigint;";
+        }
+        
+        # Add a new unique constraint to avoid devices with same name. 
+        # Requires renaming existing indexes to be consistent with newly generated 
+        # schema in this version
+        push @statements, 
+        'DROP INDEX "Device2";',
+        'DROP INDEX "Device3";',
+        'DROP INDEX "Device4";',
+        'DROP INDEX "Device5";',
+        'DROP INDEX "Device6";',
+        'DROP INDEX "Device7";',
+        'DROP INDEX "Device8";',
+        
+        'ALTER TABLE device ADD CONSTRAINT "device2" UNIQUE ("name");',
+        
+        'CREATE INDEX "Device3" on "device" ("used_by");',
+        'CREATE INDEX "Device4" on "device" ("owner");',
+        'CREATE INDEX "Device5" on "device" ("os");',
+        'CREATE INDEX "Device6" on "device" ("sysname");',
+        'CREATE INDEX "Device7" on "device" ("down_from");',
+        'CREATE INDEX "Device8" on "device" ("down_until");',
+        'CREATE INDEX "Device9" on "device" ("extension");',
 
-	"UPDATE schemainfo SET version='1.0.2' WHERE id=1;",
-	"DELETE FROM datacache;";
-	
+        "UPDATE schemainfo SET version='1.0.2' WHERE id=1;",
+        "DELETE FROM datacache;";
+        
     }else{
-	die "Unsupported DB type: $dbms\n";
+        die "Unsupported DB type: $dbms\n";
     }
 
 }
@@ -171,12 +186,12 @@ sub upg_103_104 {
 
     if ( $dbms eq 'mysql' ) {
 
-	push @statements, "ALTER TABLE ipblock ADD COLUMN use_network_broadcast bool NOT NULL;";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN use_network_broadcast bool NOT NULL;";
 
     }elsif ( $dbms eq 'Pg' ){
 
-	push @statements, 
-	"ALTER TABLE ipblock ADD COLUMN use_network_broadcast bool NOT NULL default 'f';";
+        push @statements, 
+        "ALTER TABLE ipblock ADD COLUMN use_network_broadcast bool NOT NULL default 'f';";
 
     }
     
@@ -189,15 +204,15 @@ sub upg_104_105 {
 
     if ( $dbms eq 'mysql' ) {
 
-	push @statements, "ALTER TABLE device ADD COLUMN oobname_2 varchar(255);";
-	push @statements, "ALTER TABLE device ADD COLUMN oobnumber_2 varchar(32);";
-	push @statements, "ALTER TABLE device ADD COLUMN power_outlet varchar(255);";
-	push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 varchar(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN oobname_2 varchar(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN oobnumber_2 varchar(32);";
+        push @statements, "ALTER TABLE device ADD COLUMN power_outlet varchar(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 varchar(255);";
 
-	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL;";
-	push @statements, "ALTER TABLE ipblock ADD COLUMN rir varchar(255);";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL;";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN rir varchar(255);";
 
-	push @statements, "CREATE TABLE `asn` (
+        push @statements, "CREATE TABLE `asn` (
                              `description` varchar(255) NULL,
                              `id` bigint NOT NULL auto_increment,
                              `info` text NULL,
@@ -209,68 +224,68 @@ sub upg_104_105 {
                            ) ENGINE=InnoDB;
                            ";
 
-	push @statements, "ALTER TABLE ipblock ADD COLUMN asn bigint;";
-	push @statements, "ALTER TABLE ipblock ADD CONSTRAINT `fk_asn` FOREIGN KEY (`asn`) ".
-	    "REFERENCES `asn` (`id`);";
-	push @statements, "CREATE INDEX asn ON ipblock (asn);";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN asn bigint;";
+        push @statements, "ALTER TABLE ipblock ADD CONSTRAINT `fk_asn` FOREIGN KEY (`asn`) ".
+            "REFERENCES `asn` (`id`);";
+        push @statements, "CREATE INDEX asn ON ipblock (asn);";
 
-	push @statements, "INSERT INTO asn (number) SELECT DISTINCT bgplocalas FROM device WHERE bgplocalas IS NOT NULL;";
+        push @statements, "INSERT INTO asn (number) SELECT DISTINCT bgplocalas FROM device WHERE bgplocalas IS NOT NULL;";
 
-	push @statements, "ALTER TABLE device MODIFY bgplocalas bigint;";
-	push @statements, "CREATE INDEX bgplocalas ON device (bgplocalas);";
+        push @statements, "ALTER TABLE device MODIFY bgplocalas bigint;";
+        push @statements, "CREATE INDEX bgplocalas ON device (bgplocalas);";
 
-	push @statements, "UPDATE device,asn SET device.bgplocalas=asn.id WHERE device.bgplocalas=asn.number;"; 
+        push @statements, "UPDATE device,asn SET device.bgplocalas=asn.id WHERE device.bgplocalas=asn.number;"; 
 
-	push @statements, "ALTER TABLE device ADD CONSTRAINT `fk_bgplocalas` FOREIGN KEY (`bgplocalas`) ".
-	    "REFERENCES `asn` (`id`);";
+        push @statements, "ALTER TABLE device ADD CONSTRAINT `fk_bgplocalas` FOREIGN KEY (`bgplocalas`) ".
+            "REFERENCES `asn` (`id`);";
 
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN contactlist bigint;";
-	push @statements, "ALTER TABLE bgppeering ADD CONSTRAINT `fk_contactlist_bgppeering` FOREIGN KEY (`contactlist`) ".
-	    "REFERENCES `contactlist` (`id`);";
-	push @statements, "CREATE INDEX contactlist ON bgppeering (contactlist);";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN last_changed timestamp;";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN peer_group varchar(255);";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN state varchar(255);";
-	push @statements, "ALTER TABLE bgppeering DROP FOREIGN KEY `fk_monitorstatus`;";
-	push @statements, "ALTER TABLE bgppeering DROP INDEX monitorstatus;";
-	push @statements, "ALTER TABLE bgppeering DROP COLUMN monitorstatus;";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN contactlist bigint;";
+        push @statements, "ALTER TABLE bgppeering ADD CONSTRAINT `fk_contactlist_bgppeering` FOREIGN KEY (`contactlist`) ".
+            "REFERENCES `contactlist` (`id`);";
+        push @statements, "CREATE INDEX contactlist ON bgppeering (contactlist);";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN last_changed timestamp;";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN peer_group varchar(255);";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN state varchar(255);";
+        push @statements, "ALTER TABLE bgppeering DROP FOREIGN KEY `fk_monitorstatus`;";
+        push @statements, "ALTER TABLE bgppeering DROP INDEX monitorstatus;";
+        push @statements, "ALTER TABLE bgppeering DROP COLUMN monitorstatus;";
 
-	push @statements, "ALTER TABLE rrds DROP FOREIGN KEY `fk_rr_2`;";
-	push @statements, "ALTER TABLE rrds DROP INDEX `rrds1`;";
-	push @statements, "CREATE UNIQUE INDEX rrds1 ON rrds (rr, key_tag, algorithm, digest_type);";
-	push @statements, "ALTER TABLE rrds ADD CONSTRAINT `fk_rr_2` FOREIGN KEY (`rr`) REFERENCES `rr` (`id`);";
+        push @statements, "ALTER TABLE rrds DROP FOREIGN KEY `fk_rr_2`;";
+        push @statements, "ALTER TABLE rrds DROP INDEX `rrds1`;";
+        push @statements, "CREATE UNIQUE INDEX rrds1 ON rrds (rr, key_tag, algorithm, digest_type);";
+        push @statements, "ALTER TABLE rrds ADD CONSTRAINT `fk_rr_2` FOREIGN KEY (`rr`) REFERENCES `rr` (`id`);";
 
-	push @statements, "ALTER TABLE device ADD COLUMN monitoring_template varchar(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN monitoring_template varchar(255);";
 
-	push @statements, "ALTER TABLE device ADD COLUMN host_device bigint;";
-	push @statements, "ALTER TABLE device ADD CONSTRAINT `fk_host_device` FOREIGN KEY (`host_device`) ".
-	    "REFERENCES `device` (`id`);";
-	push @statements, "CREATE INDEX host_device ON device (host_device);";
+        push @statements, "ALTER TABLE device ADD COLUMN host_device bigint;";
+        push @statements, "ALTER TABLE device ADD CONSTRAINT `fk_host_device` FOREIGN KEY (`host_device`) ".
+            "REFERENCES `device` (`id`);";
+        push @statements, "CREATE INDEX host_device ON device (host_device);";
 
-	push @statements, "DROP TABLE backbonecable_history;";
-	push @statements, "DROP TABLE cablestrand_history;";
-	push @statements, "DROP TABLE circuit_history;";
-	push @statements, "DROP TABLE contact_history;";
-	push @statements, "DROP TABLE device_history;";
-	push @statements, "DROP TABLE entity_history;";
-	push @statements, "DROP TABLE interface_history;";
-	push @statements, "DROP TABLE person_history;";
-	push @statements, "DROP TABLE product_history;";
-	push @statements, "DROP TABLE site_history;";
-	push @statements, "DROP TABLE sitelink_history;";
-	push @statements, "DROP TABLE vlangroup_history;";
+        push @statements, "DROP TABLE backbonecable_history;";
+        push @statements, "DROP TABLE cablestrand_history;";
+        push @statements, "DROP TABLE circuit_history;";
+        push @statements, "DROP TABLE contact_history;";
+        push @statements, "DROP TABLE device_history;";
+        push @statements, "DROP TABLE entity_history;";
+        push @statements, "DROP TABLE interface_history;";
+        push @statements, "DROP TABLE person_history;";
+        push @statements, "DROP TABLE product_history;";
+        push @statements, "DROP TABLE site_history;";
+        push @statements, "DROP TABLE sitelink_history;";
+        push @statements, "DROP TABLE vlangroup_history;";
 
     }elsif ( $dbms eq 'Pg' ){
 
-	push @statements, "ALTER TABLE device ADD COLUMN oobname_2 character varying(255);";
-	push @statements, "ALTER TABLE device ADD COLUMN oobnumber_2 character varying(32);";
-	push @statements, "ALTER TABLE device ADD COLUMN power_outlet character varying(255);";
-	push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 character varying(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN oobname_2 character varying(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN oobnumber_2 character varying(32);";
+        push @statements, "ALTER TABLE device ADD COLUMN power_outlet character varying(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN power_outlet_2 character varying(255);";
 
-	push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL default 'f';";
-	push @statements, "ALTER TABLE ipblock ADD COLUMN rir character varying(255);";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN monitored bool NOT NULL default 'f';";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN rir character varying(255);";
 
-	push @statements, 'CREATE TABLE "asn" (
+        push @statements, 'CREATE TABLE "asn" (
                              "description" character varying(255),
                              "id" bigserial NOT NULL,
                              "info" text,
@@ -281,49 +296,49 @@ sub upg_104_105 {
                               );
                            CREATE INDEX "ASN2" on "asn" ("rir");';
 
-	push @statements, "GRANT SELECT,INSERT,UPDATE,DELETE ON asn TO $netdot_user;";
+        push @statements, "GRANT SELECT,INSERT,UPDATE,DELETE ON asn TO $netdot_user;";
 
- 	push @statements, "ALTER TABLE ipblock ADD COLUMN asn bigint;";
-	push @statements, "ALTER TABLE ipblock ADD CONSTRAINT \"fk_asn\" FOREIGN KEY (\"asn\") ".
-	    "REFERENCES \"asn\" (\"id\") DEFERRABLE;";
-	
-	push @statements, "INSERT INTO asn (number) SELECT DISTINCT bgplocalas FROM device WHERE bgplocalas IS NOT NULL;";
+        push @statements, "ALTER TABLE ipblock ADD COLUMN asn bigint;";
+        push @statements, "ALTER TABLE ipblock ADD CONSTRAINT \"fk_asn\" FOREIGN KEY (\"asn\") ".
+            "REFERENCES \"asn\" (\"id\") DEFERRABLE;";
+        
+        push @statements, "INSERT INTO asn (number) SELECT DISTINCT bgplocalas FROM device WHERE bgplocalas IS NOT NULL;";
 
-	push @statements, "ALTER TABLE device ALTER COLUMN bgplocalas TYPE bigint;";
-	push @statements, "ALTER TABLE device ADD CONSTRAINT \"fk_bgplocalas\" FOREIGN KEY (\"bgplocalas\") ".
-	    "REFERENCES \"asn\" (\"id\") DEFERRABLE;";
+        push @statements, "ALTER TABLE device ALTER COLUMN bgplocalas TYPE bigint;";
+        push @statements, "ALTER TABLE device ADD CONSTRAINT \"fk_bgplocalas\" FOREIGN KEY (\"bgplocalas\") ".
+            "REFERENCES \"asn\" (\"id\") DEFERRABLE;";
 
-	push @statements, "UPDATE device SET bgplocalas=asn.id FROM asn WHERE device.bgplocalas=asn.number;"; 
-	
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN contactlist bigint;";
-	push @statements, "ALTER TABLE \"bgppeering\" ADD CONSTRAINT \"fk_contactlist\" FOREIGN KEY (\"contactlist\") ".
-	    "REFERENCES \"contactlist\" (\"id\") DEFERRABLE;";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN last_changed timestamp;";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN peer_group character varying(255);";
-	push @statements, "ALTER TABLE bgppeering ADD COLUMN state character varying(255);";
-	push @statements, "ALTER TABLE bgppeering DROP COLUMN monitorstatus;";
+        push @statements, "UPDATE device SET bgplocalas=asn.id FROM asn WHERE device.bgplocalas=asn.number;"; 
+        
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN contactlist bigint;";
+        push @statements, "ALTER TABLE \"bgppeering\" ADD CONSTRAINT \"fk_contactlist\" FOREIGN KEY (\"contactlist\") ".
+            "REFERENCES \"contactlist\" (\"id\") DEFERRABLE;";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN last_changed timestamp;";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN peer_group character varying(255);";
+        push @statements, "ALTER TABLE bgppeering ADD COLUMN state character varying(255);";
+        push @statements, "ALTER TABLE bgppeering DROP COLUMN monitorstatus;";
 
-	push @statements, 'ALTER TABLE rrds DROP CONSTRAINT rrds1;';
-	push @statements, 'ALTER TABLE rrds ADD CONSTRAINT rrds1 UNIQUE (rr, key_tag, algorithm, digest_type);';
+        push @statements, 'ALTER TABLE rrds DROP CONSTRAINT rrds1;';
+        push @statements, 'ALTER TABLE rrds ADD CONSTRAINT rrds1 UNIQUE (rr, key_tag, algorithm, digest_type);';
 
-	push @statements, "ALTER TABLE device ADD COLUMN monitoring_template character varying(255);";
+        push @statements, "ALTER TABLE device ADD COLUMN monitoring_template character varying(255);";
 
-	push @statements, "ALTER TABLE device ADD COLUMN host_device bigint;";
-	push @statements, "ALTER TABLE device ADD CONSTRAINT \"fk_host_device\" FOREIGN KEY (\"host_device\") ".
-	    "REFERENCES \"device\" (\"id\") DEFERRABLE;";
+        push @statements, "ALTER TABLE device ADD COLUMN host_device bigint;";
+        push @statements, "ALTER TABLE device ADD CONSTRAINT \"fk_host_device\" FOREIGN KEY (\"host_device\") ".
+            "REFERENCES \"device\" (\"id\") DEFERRABLE;";
 
-	push @statements, "DROP TABLE backbonecable_history;";
-	push @statements, "DROP TABLE cablestrand_history;";
-	push @statements, "DROP TABLE circuit_history;";
-	push @statements, "DROP TABLE contact_history;";
-	push @statements, "DROP TABLE device_history;";
-	push @statements, "DROP TABLE entity_history;";
-	push @statements, "DROP TABLE interface_history;";
-	push @statements, "DROP TABLE person_history;";
-	push @statements, "DROP TABLE product_history;";
-	push @statements, "DROP TABLE site_history;";
-	push @statements, "DROP TABLE sitelink_history;";
-	push @statements, "DROP TABLE vlangroup_history;";
+        push @statements, "DROP TABLE backbonecable_history;";
+        push @statements, "DROP TABLE cablestrand_history;";
+        push @statements, "DROP TABLE circuit_history;";
+        push @statements, "DROP TABLE contact_history;";
+        push @statements, "DROP TABLE device_history;";
+        push @statements, "DROP TABLE entity_history;";
+        push @statements, "DROP TABLE interface_history;";
+        push @statements, "DROP TABLE person_history;";
+        push @statements, "DROP TABLE product_history;";
+        push @statements, "DROP TABLE site_history;";
+        push @statements, "DROP TABLE sitelink_history;";
+        push @statements, "DROP TABLE vlangroup_history;";
 
     }
   
@@ -339,4 +354,412 @@ sub upg_105_106 {
 #########################################################################
 sub upg_106_107 {
     push @statements, "UPDATE schemainfo SET version='1.0.7' WHERE id=1;",
+}
+#
+#########################################################################
+sub upg_107_108 {
+    if ( $dbms eq 'mysql' ) {
+        push @statements, <<EOF;
+CREATE TABLE `location_type` (
+    `description` varchar(255) NULL,
+    `id` bigint NOT NULL auto_increment,
+    `magic` bigint NOT NULL DEFAULT 0,
+    `name` varchar(64) NOT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE INDEX `location_type_name` (`name`)
+) ENGINE=InnoDB;
+EOF
+
+
+        # valid option_type values: bool, int, text, selection
+        push @statements, <<EOF;
+CREATE TABLE `location_option_spec` (
+    `defvalue` varchar(255),
+    `description` varchar(255),
+    `id` bigint NOT NULL auto_increment,
+    `location_type` bigint NOT NULL,
+    `maxint` bigint,
+    `minint` bigint,
+    `name` varchar(64) NOT NULL,
+    `option_type` varchar(30) NOT NULL,
+    `selection` text,
+    `validator` varchar(255),
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+EOF
+        # In addition to - or instead of - the regex validator, we might want a
+        # more generic "type" (boolean, int, text, select-from-list)
+        # and possibly a "selector", which we put into the web interface.
+
+    push @statements, 'ALTER TABLE location_option_spec '.
+	'ADD CONSTRAINT `fk_location_option_spec_location_type` '.
+	'FOREIGN KEY (`location_type`) REFERENCES `location_type` (`id`);';
+
+    push @statements, <<EOF;
+CREATE TABLE `location` (
+    `description` varchar(255),
+    `id` bigint NOT NULL auto_increment,
+    `info` mediumtext,
+    `located_in` bigint,
+    `location_type` bigint NOT NULL,
+    `name` varchar(64) NOT NULL,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+EOF
+
+    push @statements, <<EOF;
+ALTER TABLE location ADD CONSTRAINT `fk_location_located_in`
+	FOREIGN KEY (`located_in`) REFERENCES `location` (`id`);
+EOF
+    push @statements, <<EOF;
+ALTER TABLE location ADD CONSTRAINT `fk_location_location_type`
+	FOREIGN KEY (`location_type`) REFERENCES `location_type` (`id`);
+EOF
+
+    push @statements, <<EOF;
+CREATE TABLE `location_option` (
+    `id` bigint NOT NULL auto_increment,
+    `location` bigint NOT NULL,
+    `location_option_spec` bigint NOT NULL,
+    `value` text,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+EOF
+    push @statements, <<EOF;
+ALTER TABLE location_option ADD CONSTRAINT `fk_location_option_location`
+    FOREIGN KEY (`location`) REFERENCES `location` (`id`);
+EOF
+    push @statements, <<EOF;
+ALTER TABLE location_option ADD CONSTRAINT `fk_location_option_location_spec`
+    FOREIGN KEY (`location_option_spec`) REFERENCES `location_option_spec` (`id`);
+EOF
+
+    push @statements, migrate_to_location(
+	table => "site",
+	parent_table => undef,
+	fields => [
+		# fields directly in location
+	    { name => "id", type => "bigint(20)", is_id => 1, },
+	    { name => "name", type => "varchar(64)", is_name => 1, },
+	    { name => "info", type => "mediumtext", is_info => 1, },
+
+	    { name => "aliases", type => "varchar(255)", descr => "Alternative names for this site", },
+	    # { name => "availability", type => "bigint", },
+	    { name => "city", type => "varchar(64)", descr => "City where this Site is located", },
+	    # { name => "contactlist", type => "bigint", },
+	    { name => "country", type => "varchar(64)", descr => "Country where this Site is located", },
+	    { name => "gsf", type => "int", descr => "Gross Square Footage of this site", },
+	    { name => "number", type => "varchar(64)", descr => "A unique identifier for this Site within the organization", },
+	    { name => "pobox", type => "varchar(32)", descr => "Post Office Box", },
+	    { name => "state", type => "varchar(32)", descr => "State where this Site is located", },
+	    { name => "street1", type => "varchar(128)", descr => "Street 1st line", },
+	    { name => "street2", type => "varchar(128)", descr => "Street 2nd line", },
+	    { name => "zip", type => "varchar(16)", descr => "ZIP/Postal Code", },
+	    { name => "latitude", type => "varchar(20)", descr => "Latitude of this Site", is_new => 1, },
+	    { name => "longitude", type => "varchar(20)", descr => "Longitude of this Site", is_new => 1, },
+	]);
+
+    push @statements, migrate_to_location(
+	table => "floor",
+	parent_table => "site",
+	fields => [
+	    # fields directly in location
+	    { name => "id", type => "bigint(20)", is_id => 1, },
+	    { name => "info", type => "mediumtext", is_info => 1, },
+	    { name => "site", type => "bigint", is_parent => 1, },
+
+	    { name => "level", type => "varchar(32)", descr => "The floor level", },
+	]);
+
+    push @statements, migrate_to_location(
+	table => "room",
+	parent_table => "floor",
+	fields => [
+	    # fields directly in location
+	    { name => "id", type => "bigint(20)", is_id => 1, },
+	    { name => "name", type => "varchar(64)", is_name => 1, },
+	    { name => "floor", type => "bigint", is_parent => 1, },
+	]);
+
+    push @statements, "ALTER TABLE closet MODIFY name varchar(64);";
+
+    push @statements, migrate_to_location(
+	table => "closet",
+	parent_table => "room",
+	fields => [
+	    # fields directly in location
+	    { name => "id", type => "bigint(20)", is_id => 1, },
+	    { name => "name", type => "varchar(64)", is_name => 1, },
+	    { name => "info", type => "mediumtext", is_info => 1, },
+	    { name => "room", type => "bigint", is_parent => 1, },
+
+	    { name => "dimensions", type => "varchar(32)", },
+	]);
+
+    push @statements, "ALTER TABLE asset ADD COLUMN location bigint;";
+    push @statements, "ALTER TABLE asset ADD CONSTRAINT fk_asset_location FOREIGN KEY (location) REFERENCES location(id);";
+    push @statements, "ALTER TABLE asset ADD COLUMN parent bigint;";
+    push @statements, "ALTER TABLE asset ADD CONSTRAINT fk_asset_asset FOREIGN KEY (parent) REFERENCES asset(id);";
+
+    push @statements, "ALTER TABLE product ADD COLUMN hsize bigint;";
+    push @statements, "ALTER TABLE product ADD COLUMN vsize bigint;";
+
+        push @statements, <<EOF;
+CREATE TABLE `asset_option_spec` (
+    `defvalue` varchar(255),
+    `description` varchar(255),
+    `id` bigint NOT NULL auto_increment,
+    `maxint` bigint,
+    `minint` bigint,
+    `name` varchar(64) NOT NULL,
+    `option_type` varchar(30) NOT NULL,
+    `selection` text,
+    `validator` varchar(255),
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+EOF
+
+    push @statements, <<EOF;
+INSERT INTO asset_option_spec (name, option_type, validator) values
+    ('IPMI Mac Address', 'text', '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}');
+INSERT INTO asset_option_spec (name, option_type, validator) values
+    ('LAN1 Mac Address', 'text', '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}');
+INSERT INTO asset_option_spec (name, option_type, validator) values
+    ('LAN2 Mac Address', 'text', '([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}');
+EOF
+
+    push @statements, <<EOF;
+CREATE TABLE `asset_option` (
+    `id` bigint NOT NULL auto_increment,
+    `asset` bigint NOT NULL,
+    `asset_option_spec` bigint NOT NULL,
+    `value` text,
+    PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+EOF
+    push @statements, <<EOF;
+ALTER TABLE asset_option ADD CONSTRAINT `fk_asset_option_asset`
+    FOREIGN KEY (`asset`) REFERENCES `asset` (`id`);
+EOF
+    push @statements, <<EOF;
+ALTER TABLE asset_option ADD CONSTRAINT `fk_asset_option_asset_spec`
+    FOREIGN KEY (`asset_option_spec`) REFERENCES `asset_option_spec` (`id`);
+EOF
+
+    push @statements, <<EOF;
+DROP PROCEDURE IF EXISTS migrate_devices;
+delimiter //
+CREATE PROCEDURE migrate_devices()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE v_id bigint;
+  DECLARE v_site bigint;
+  DECLARE v_room bigint;
+  DECLARE v_asset_id bigint;
+  DECLARE v_loc bigint;
+  DECLARE cur CURSOR FOR SELECT id,site,room,asset_id FROM device;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+
+read_loop: LOOP
+    FETCH cur INTO v_id,v_site,v_room,v_asset_id;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    IF v_asset_id IS NOT NULL THEN
+      IF v_room IS NOT NULL THEN
+        SELECT location_id INTO v_loc FROM temp_room_to_location WHERE room_id = v_room;
+      ELSEIF v_site IS NOT NULL THEN
+        SELECT location_id INTO v_loc FROM temp_site_to_location WHERE site_id = v_site;
+      END IF;
+      IF v_loc IS NOT NULL THEN
+        UPDATE asset SET location = v_loc WHERE id = v_asset_id;
+      END IF;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+delimiter ;
+CALL migrate_devices();
+DROP PROCEDURE IF EXISTS migrate_devices;
+EOF
+
+    push @statements, "ALTER TABLE device DROP COLUMN rack;"; # XXX
+    push @statements, "ALTER TABLE device DROP foreign key fk_room_1_device;";
+    push @statements, "ALTER TABLE device DROP foreign key fk_room_device;";
+    push @statements, "ALTER TABLE device DROP COLUMN room;";
+    push @statements, "ALTER TABLE device DROP foreign key fk_site_device;";
+    push @statements, "ALTER TABLE device DROP COLUMN site;";
+
+    push @statements, migrate_to_location(table => "rack-row", skip_table => 1, fields => []);
+    push @statements, migrate_to_location(
+	table => "rack",
+	skip_table => 1,
+	magic => 16,
+	fields => [
+	    { name => "size", type => "int", descr => "Size of this Rack", is_new => 1, },
+	    # XXX { name => "direction", type => "upwards|downwards", descr => "Direction numbering", default => "upwards", is_new => 1, },
+	    { name => "direction", type => "int", descr => "Direction numbering", default => "upwards", is_new => 1, },
+    ]);
+    push @statements, migrate_to_location(
+	table => "rack-position-front",
+	skip_table => 1,
+	magic => 33,
+	fields => [
+	    { name => "position", type => "int", descr => "Position in the Rack", is_new => 1, },
+    ]);
+    push @statements, migrate_to_location(
+	table => "rack-position-back",
+	skip_table => 1,
+	magic => 36,
+	fields => [
+	    { name => "position", type => "int", descr => "Position in the Rack", is_new => 1, },
+    ]);
+
+    # cleanup
+    push @statements,
+	"DROP TABLE temp_closet_to_location;",
+	"DROP TABLE temp_room_to_location;",
+	"DROP TABLE temp_floor_to_location;",
+	"DROP TABLE temp_site_to_location;";
+	
+    } else {
+        die "implement me!\n";
+    }
+
+    push @statements, "UPDATE schemainfo SET version='1.0.8' WHERE id=1;";
+}
+
+sub migrate_to_location
+{
+    my %o = @_;
+    my @r;
+
+    $o{magic} //= 0;
+    push @r, "INSERT INTO location_type (name, magic) values ('$o{table}', $o{magic});";
+    push @r, "SELECT last_insert_id() INTO \@id_site;";
+    for my $f (@{$o{fields}}) {
+	next if $f->{is_id};
+	next if $f->{is_name};
+	next if $f->{is_info};
+	next if $f->{is_parent};
+	my $o_name = $f->{option_name} || $f->{name};
+	my $descr = $f->{descr} || $f->{option_name} || $f->{name};
+	my $option_type = $f->{option_type};
+	unless ($option_type) {
+	    if ($f->{type} =~ /int/) {
+		$option_type = "int";
+	    } else {
+		$option_type = "text";
+	    }
+	}
+	push @r, "INSERT INTO location_option_spec (location_type, name, description, option_type) values " .
+	    "(\@id_site, '$o_name', '$descr', '$option_type');";
+    }
+    return @r if $o{skip_table};
+
+    push @r, "DROP TABLE IF EXISTS temp_$o{table}_to_location;";
+    push @r, <<EOF;
+CREATE TABLE `temp_$o{table}_to_location` (
+	`$o{table}_id` bigint NOT NULL,
+	`location_id` bigint NOT NULL,
+	UNIQUE INDEX `temp_$o{table}_to_location_$o{table}_id` (`$o{table}_id`),
+	UNIQUE INDEX `temp_$o{table}_to_location_location_id` (`location_id`)
+) ENGINE=InnoDB;
+EOF
+    push @r, "DROP PROCEDURE IF EXISTS migrate_$o{table}_to_location;";
+    my $proc = <<EOF;
+CREATE PROCEDURE migrate_$o{table}_to_location()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE los bigint(20);
+  DECLARE loc_type bigint(20);
+  DECLARE loc_id   bigint(20);
+  DECLARE parent_id bigint(20);
+EOF
+    my $id;
+    my $name;
+    my $info;
+    my $parent;
+    for my $f (@{$o{fields}}) {
+	next if $f->{is_new};
+	$proc .= "  DECLARE v_$f->{name} $f->{type};\n";
+	$id = $f->{name} if $f->{is_id};
+	$name = $f->{name} if $f->{is_name};
+	$info = $f->{name} if $f->{is_info};
+	$parent = $f->{name} if $f->{is_parent};
+    }
+    $proc .= "  DECLARE cur CURSOR FOR SELECT ";
+    $proc .= join(",", map { $_->{name} } grep { !$_->{is_new} } @{$o{fields}});
+    $proc .= " FROM $o{table};\n";
+    $proc .= <<EOF;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  SELECT id INTO loc_type FROM location_type where name = '$o{table}';
+  OPEN cur;
+
+read_loop: LOOP
+EOF
+    $proc .= "    FETCH cur INTO ";
+    $proc .= join(",", map { "v_$_->{name}" } grep { !$_->{is_new} } @{$o{fields}});
+    $proc .= ";\n";
+    $proc .= <<EOF;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+EOF
+    my (@n, @v);
+    push @n, "location_type";
+    push @v, "loc_type";
+    if ($o{parent_table} && defined $parent) {
+	push @n, "located_in";
+	push @v, "parent_id";
+	$proc .= "    IF v_$parent IS NOT NULL THEN\n";
+	$proc .= "      SELECT location_id INTO parent_id FROM temp_$o{parent_table}_to_location ";
+	$proc .= "WHERE $o{parent_table}_id = v_$parent;\n";
+	$proc .= "    END IF;\n";
+    }
+    if (defined $name) {
+	push @n, "name";
+	push @v, "v_$name";
+    }
+    if (defined $info) {
+	push @n, "info";
+	push @v, "v_$info";
+    }
+    $proc .= "    INSERT INTO location (" . join(",",@n);
+    $proc .= ") VALUES (" . join(",", @v);
+    $proc .= ");\n";
+    $proc .= <<EOF;
+    SELECT last_insert_id() INTO loc_id;
+    INSERT INTO temp_$o{table}_to_location ($o{table}_id, location_id) VALUES (v_$id, loc_id);
+EOF
+    for my $f (@{$o{fields}}) {
+	my $o_name = $f->{option_name} || $f->{name};
+	next if $f->{is_new};
+	next if $f->{is_id};
+	next if $f->{is_name};
+	next if $f->{is_info};
+	next if $f->{is_parent};
+	$proc .= <<EOF;
+    IF v_$f->{name} IS NOT NULL THEN
+      SELECT id INTO los FROM location_option_spec WHERE location_type = loc_type AND name = '$o_name';
+      INSERT INTO location_option (location, location_option_spec, value) VALUES (loc_id, los, v_$f->{name});
+    END IF;
+EOF
+    }
+    $proc .= <<EOF;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+EOF
+    push @r, "delimiter //";
+    push @r, $proc;
+    push @r, "delimiter ;";
+    push @r, "CALL migrate_$o{table}_to_location();";
+    push @r, "DROP PROCEDURE IF EXISTS migrate_$o{table}_to_location;";
+    return @r;
 }

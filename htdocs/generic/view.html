@@ -41,6 +41,19 @@ unless ( $manager && $manager->can($user, "view", $obj) ){
 
 my $labelstr  = $obj->get_label;
 my %linksfrom = $table->meta_data->get_links_from;
+for my $link_method (keys %linksfrom) {
+    if ($link_method eq "options") {
+	my $linked_table = (keys %{ $linksfrom{$link_method} })[0];
+	if (lc($table) . "_option" eq lc($linked_table)) {
+	    # If the table has associated option table,
+	    # such as Asset and Asset_Option, we do not
+	    # want to present a separate section for the options,
+	    # because options are likely to be handled in a different
+	    # way.
+	    delete $linksfrom{$link_method};
+	}
+    }
+}
 my %order     = $table->meta_data->get_column_order;
 
 if ( $DEBUG ){

@@ -3,6 +3,7 @@ package Netdot::REST;
 use base qw( Netdot );
 use Netdot::Model;
 use XML::Simple;
+use JSON::XS;
 use Data::Dumper;
 use Apache2::Const -compile => qw(HTTP_FORBIDDEN HTTP_UNAUTHORIZED OK NOT_FOUND 
                                   HTTP_BAD_REQUEST HTTP_NOT_ACCEPTABLE);
@@ -127,7 +128,7 @@ sub handle_resource {
 			  $self->{request}->method, 
 			  $resource, 
 			  $self->{request}->args,
-			  $self->{request}->connection->remote_ip, 
+			  $self->remote_ip,
 			  $headers->{'User-Agent'}
 		  ));
 
@@ -497,6 +498,11 @@ sub print_serialized {
 	$self->{request}->content_type(q{text/xml; charset=utf-8});
 
 	print $xml;
+    } elsif ( $mtype eq "json" ) {
+	my $json = JSON::XS::encode_json($data);
+	$self->{request}->content_type(q{application/json; charset=utf-8});
+
+	print $json;
     }
 }
 
@@ -525,6 +531,8 @@ sub read_serialized {
     if ( $mtype eq 'xml' ){
 	$self->_load_xml_lib();
 	$self->{xs}->XMLin($string);
+    } elsif ( $mtype eq "json" ) {
+	JSON::XS::decode_json($string);
     }
 }
 
@@ -543,7 +551,7 @@ sub read_serialized {
 sub check_accept_header{
     my ($self, $accept) = @_;
     $logger->debug(sprintf("Netdot::REST::handle_resource: %s, Accept: %s", 
-			   $self->{request}->connection->remote_ip, $accept
+			   $self->remote_ip, $accept
 		   ));
     
     my @headers = split m/,(\s+)?/, $accept;
@@ -555,6 +563,9 @@ sub check_accept_header{
 		# This will be used in future versions of this API for backwards compatibility
 		$self->{version} = $1;
 	    }
+	    last;
+	} elsif ( $mtype eq "application/json" ) {
+	    $self->{media_type} = 'json';
 	    last;
 	}
     }
@@ -647,6 +658,16 @@ sub _load_xml_lib{
 	    XMLDecl    => 1, 
 	    KeyAttr    => 'id',
 	    );
+    }
+}
+
+sub remote_ip
+{
+    my $self = shift;
+    if ($self->{request}->connection->can("remote_ip")) {
+	$self->{request}->connection->remote_ip;  # 2.2
+    } else {
+	$self->{request}->connection->client_ip;  # 2.4
     }
 }
 

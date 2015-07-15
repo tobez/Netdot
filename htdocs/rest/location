@@ -1,0 +1,86 @@
+<%doc>
+REST resource to fetch location information
+</%doc>
+<%args>
+$user                    # Should be assigned by autohandler
+$manager                 # Should be assigned by autohandler
+$object => undef
+</%args>
+<%init>
+
+use Apache2::Const -compile => qw(FORBIDDEN OK NOT_FOUND HTTP_BAD_REQUEST);
+use Data::Dumper;
+use Netdot::REST;
+use Netdot::Model::Location;
+
+my $rest = Netdot::REST->new(user=>$user, manager=>$manager);
+$rest->request($r);
+
+# Get relevant HTTP headers from request object
+my $headers = $rest->{request}->headers_in;
+
+# Deal with Accept header
+$rest->check_accept_header($headers->{Accept}) if ( $headers->{Accept} );
+
+my $method = $rest->{request}->method;
+my $req_args = $method eq 'POST' ? 
+    sprintf("%s", join(" ", Dumper(%ARGS))) : $rest->{request}->args;
+
+my $logger = Netdot->log->get_logger("Netdot::REST");
+$logger->warn(sprintf("/rest/location: %s request with args: %s from %s (%s), PI: %s", 
+ 		      $method, 
+		      $req_args,
+ 		      $rest->remote_ip, 
+ 		      $headers->{'User-Agent'},
+$r->path_info,
+ 	      ));
+
+</%init>
+<%perl>
+    
+my %ret;
+if ( $method eq 'GET' ){
+	my $pi = $r->path_info;
+	if ($pi =~ /^\/(\d+)$/) {
+		my $loc = Netdot::Model::Location->retrieve($1);
+		$rest->print_serialized($loc ? $loc->as_hash : {});
+	} elsif ($pi eq "/roots") {
+		my @r;
+		for my $r (Netdot::Model::Location->roots) {
+			push @r, $r->as_hash;
+		}
+		$rest->print_serialized(\@r);
+	} elsif ($ARGS{located_in} && $ARGS{located_in} =~ /^\d+$/) {
+		my @r;
+		for my $r (Netdot::Model::Location->search(located_in => $ARGS{located_in})) {
+			push @r, $r->as_hash;
+		}
+		$rest->print_serialized(\@r);
+	} elsif (exists $ARGS{search}) {
+		my @r;
+		for my $r (Netdot::Model::Location->search_like(name => "%$ARGS{search}%")) {
+			push @r, $r->as_hash unless $r->is_hidden;
+		}
+		$rest->print_serialized(\@r);
+	} else {
+		$rest->print_serialized({});
+	}
+} elsif ( $method eq 'POST' ){
+    my $result;
+    my $new = $rest->read_serialized($object);
+    if ($new->{id}) {
+	$result = Netdot::Model::Location->hash_update($new);
+    } else {
+open my $fh, ">>", "/tmp/netdot.debug";
+print $fh "trying to insert: ", Dumper($new), "\n";
+close $fh;
+	$result = Netdot::Model::Location->hash_insert($new);
+open $fh, ">>", "/tmp/netdot.debug";
+print $fh "inserted: ", Dumper($result), "\n";
+close $fh;
+    }
+    $rest->print_serialized($result);
+
+}
+
+</%perl>

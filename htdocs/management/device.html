@@ -24,7 +24,7 @@ $id         => undef
 $search     => undef
 $edit       => undef
 $editgen    => undef
-$editloc    => undef
+$editass    => undef
 $editcomments => undef
 $editmgmt   => undef
 $editattr   => undef
@@ -336,14 +336,14 @@ my $refresh_url = "device.html?id=$id&view=$view";
 
 % if ( $view eq "Basics" || $view eq "All" ){
 
-% if ( $editgen || $editloc || $editcomments || $editmgmt ) {
+% if ( $editgen || $editass || $editcomments || $editmgmt ) {
         <form name="netdotform" action="device.html" method="POST">
 	    <input type="hidden" name="id" value="<% $id %>">
 	    <input type="hidden" name="view" value="<% $view %>">
 % }
     <div class="container">
-	<!-- General Info Table -->
-    	<div class="containerheadleft"><b>General</b></div>
+	<!-- Device Information Table -->
+    	<div class="containerheadleft"><b>Device Information</b></div>
     	<div class="containerheadright">
 % if ( $editgen ) {
 	    <input type="button" name="cancel_button" value="cancel" onClick="history.go(-1);">
@@ -370,6 +370,70 @@ $ui->add_to_fields(o=>$o, edit=>0, fields=>['sysname', 'sysdescription'], field_
 		   cell_data=>\@cell_data);
 
 $ui->add_to_fields(o=>$o, edit=>$editgen, 
+		   fields=>['os'], 
+		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
+    );
+my $os_used = pop @cell_data;
+my $latest_os = $o->product->latest_os if $o->product;
+if ( !$editgen && $latest_os && ($os_used ne $latest_os) ){
+    push (@cell_data, $os_used . " <span style=\"color:red;\">(Recommended OS: " . $latest_os . ")</span>");
+}else{
+    push (@cell_data, $os_used);
+}
+
+$ui->add_to_fields(o=>$o, edit=>$editgen, 
+		   fields=>['extension'], 
+		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
+    );
+
+$ui->add_to_fields(o=>$o, edit=>$editgen, fields=>['owner', 'used_by'], 
+		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
+		   linkpages=>['view.html','view.html','view.html']);
+
+my @devcontacts = $o->contacts;
+push( @field_headers, $ui->table_descr_link('DeviceContacts', 'Contacts:') );
+push( @cell_data, $ui->select_multiple(object=>$o, joins=>\@devcontacts, join_table=>"DeviceContacts", 
+				       this_field=>"device", other_table=>"ContactList", 
+				       other_field=>"contactlist", isEditing=>$editgen, action=>"delete", 
+				       makeLink=>1, linkPage=>"contactlist.html", returnAsVar=>1 ) );
+      
+{
+my @fields = ('syslocation');
+$ui->add_to_fields(o=>$o, edit=>0, fields=>\@fields, field_headers=>\@field_headers, cell_data=>\@cell_data);
+}
+
+</%perl>
+
+<& /generic/attribute_table.mhtml, field_headers=>\@field_headers, data=>\@cell_data, 
+                          width=>"2", headercolwidth=>"15%", datacolwidth=>"35%" &>
+
+
+      </div> <!-- containerbody -->
+   </div> <!-- container -->
+<!-- End Device Info Table -->
+
+<!-- Asset Info Table -->
+<div class="container">
+    <div class="containerheadleft">
+        Asset Information
+    </div>
+    <div class="containerheadright">
+%	if ($editass){	 
+        <input type="button" name="cancel_button" value="cancel" onClick="history.go(-1);">
+        <input type="submit" name="submit" value="save">
+%	}else{
+%           if ( $manager && $manager->can($user, "edit", $o) ){
+                <a href="device.html?id=<% $id %>&view=<% $view %>&editass=1">[edit]</a>
+%           }else{
+                &nbsp;
+%    	    }
+%	}
+    </div>
+    <div class="containerbody">
+<%perl>
+(@field_headers, @cell_data) = ();
+
+$ui->add_to_fields(o=>$o, edit=>$editass, 
 		   fields=>['asset_id',], 
 		   linkpages=>['view.html'],
 		   field_headers=>\@field_headers, cell_data=>\@cell_data);
@@ -392,30 +456,18 @@ if ( my $asset = $o->asset_id ){
 	      }
 	    }}
 	);
-    push( @field_headers, $ui->col_descr_link('Asset', 'custom_serial', 'Custom S/N:') );
-    push( @cell_data, $asset->custom_serial);
+    push( @field_headers, $ui->col_descr_link('Asset', 'serial_number', 'S/N:') );
+    push( @cell_data, $asset->serial_number);
 
     push( @field_headers, $ui->col_descr_link('Asset', 'inventory_number', 'Inventory:') );
     push( @cell_data, $asset->inventory_number);
+
+    my $linkPage = $ui->table_view_page("Location") || 'view.html';
+    my %field = $ui->form_field(object=>$asset, column=>"location", edit=>0, new_button=>0,
+				shortFieldName=> "location", linkPage=>$linkPage, adv_search=>0);
+    push @field_headers, $field{label};
+    push @cell_data, $field{value};
 }
-
-$ui->add_to_fields(o=>$o, edit=>$editgen, 
-		   fields=>['os'], 
-		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
-    );
-my $os_used = pop @cell_data;
-my $latest_os = $o->product->latest_os if $o->product;
-if ( !$editgen && $latest_os && ($os_used ne $latest_os) ){
-    push (@cell_data, $os_used . " <span style=\"color:red;\">(Recommended OS: " . $latest_os . ")</span>");
-}else{
-    push (@cell_data, $os_used);
-}
-
-$ui->add_to_fields(o=>$o, edit=>$editgen, 
-		   fields=>['extension'], 
-		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
-    );
-
 </%perl>
 
 <& /generic/attribute_table.mhtml, field_headers=>\@field_headers, data=>\@cell_data, 
@@ -424,79 +476,7 @@ $ui->add_to_fields(o=>$o, edit=>$editgen,
 
       </div> <!-- containerbody -->
    </div> <!-- container -->
-<!-- End General Info Table -->
-
-<!-- Location Table -->
-<div class="container">
-    <div class="containerheadleft">
-        Location/Contacts
-    </div>
-    <div class="containerheadright">
-%	if ($editloc){	 
-        <input type="button" name="cancel_button" value="cancel" onClick="history.go(-1);">
-        <input type="submit" name="submit" value="save">
-%	}else{
-%           if ( $manager && $manager->can($user, "edit", $o) ){
-                <a href="device.html?id=<% $id %>&view=<% $view %>&editloc=1">[edit]</a>
-%           }else{
-                &nbsp;
-%    	    }
-%	}
-    </div>
-    <div class="containerbody">
-<%perl>
-(@field_headers, @cell_data) = ();
-
-$ui->add_to_fields(o=>$o, edit=>$editloc, fields=>['owner', 'used_by'], 
-		   field_headers=>\@field_headers, cell_data=>\@cell_data, 
-		   linkpages=>['view.html','view.html','view.html']);
-
-my @devcontacts = $o->contacts;
-push( @field_headers, $ui->table_descr_link('DeviceContacts', 'Contacts:') );
-push( @cell_data, $ui->select_multiple(object=>$o, joins=>\@devcontacts, join_table=>"DeviceContacts", 
-				       this_field=>"device", other_table=>"ContactList", 
-				       other_field=>"contactlist", isEditing=>$editloc, action=>"delete", 
-				       makeLink=>1, linkPage=>"contactlist.html", returnAsVar=>1 ) );
-      
-
-
-push( @field_headers, $ui->col_descr_link('Device', 'site', 'Site:')  );
-push( @cell_data, &{sub{
-    my $js = sprintf("onChange=\"jsrsSendqueryNM('Room', 'Device__%d__room', this.options[selectedIndex].text);\"", $o->id);
-    $ui->select_lookup(object=>$o, column=>"site", lookup=>"Site",
-		       edit=>$editloc, linkPage=>"view.html", htmlExtra=>$js, returnAsVar=>1)
-    }} );
-
-
-my @rooms;
-if ( $o->site ){
-    @rooms = sort { $a->name cmp $b->name } $o->site->rooms;
-}
-push( @field_headers, $ui->col_descr_link('Device', 'room', 'Room:') );
-push( @cell_data, &{sub{
-    $ui->select_lookup(object=>$o, column=>"room", lookup=>"Room", 
-		       edit=>$editloc, defaults=>\@rooms,
-		       makeLink=>1, linkPage=>"view.html", returnAsVar=>1)
-    }} );
-
-{
-my @fields = ('rack');
-$ui->add_to_fields(o=>$o, edit=>$editloc, fields=>\@fields, field_headers=>\@field_headers, cell_data=>\@cell_data);
-}
-
-{
-my @fields = ('syslocation');
-$ui->add_to_fields(o=>$o, edit=>0, fields=>\@fields, field_headers=>\@field_headers, cell_data=>\@cell_data);
-}
-
-</%perl>
-
-    <& /generic/attribute_table.mhtml, width=>"2", field_headers=>\@field_headers, data=>\@cell_data &>
-
-    </div>
-</div>
-<!-- End Location Table -->
-
+<!-- End Asset Info Table -->
 
 <!-- Management Table -->
 <div class="container">
@@ -637,7 +617,7 @@ print $tmp{value};
     </div>
  </div>
 
-%   if ( $editgen || $editloc || $editcomments || $editmgmt ) {
+%   if ( $editgen || $editass || $editcomments || $editmgmt ) {
       </form>
 %   }
 

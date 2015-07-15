@@ -23,7 +23,7 @@ $view              => 'all'  #  Select a specific subset of fields from metadata
 
 <%init>
 my $maxselect = $ui->config->get('DEFAULT_SELECTMAX');
-my $DEBUG     = 0;
+my $DEBUG     = 1;
 my $js_prefix = $r->dir_config('NetdotPath') . "java_script";
 my $manager   = $ui->get_permission_manager($r);
 
@@ -120,6 +120,26 @@ foreach my $c ( sort { $order{$a} <=> $order{$b} } keys %order ) {
 	push(@comments_data,   pop @data);
     }
 } # foreach
+
+if (lc $table eq "asset") {
+    use Netdot::Model::Asset_Option_Spec;
+    for my $aos (Asset_Option_Spec->retrieve_all) {
+	if ($aos->option_type eq "text") {
+	    push @headers, $aos->name . ':';
+	    my $val = "";
+	    my $aos_id = $aos->id;
+	    if ($id) {
+		my @opts = Asset_Option->search(asset => $id, asset_option_spec => $aos_id);
+		$val = $opts[0]->value if @opts;
+	    }
+	    if ($edit) {
+		push @data, qq(<input type="text" name="aos_$aos_id" value="$val"/>);
+	    } else {
+		push @data, $val;
+	    }
+	}
+    }
+}
 
 </%perl>
     <& /generic/attribute_table.mhtml, field_headers=>\@headers, data=>\@data, 
