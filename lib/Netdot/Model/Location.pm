@@ -60,6 +60,196 @@ sub as_hash
 {
     my $self = shift;
     $self->isa_object_method('as_hash');
+
+    my $dbh = Netdot::Model->db_Main;
+
+    my $label = $self->get_label;
+    my $t_obj = $self->location_type;
+    my @po_obj = $t_obj->possible_options;
+    my @po;
+    for my $po (sort { $a->id <=> $b->id } @po_obj) {
+        push @po, {
+            id          => $po->id,
+            name        => $po->name,
+            option_type => $po->option_type,
+            selection   => $po->selection,
+            validator   => $po->validator,
+            minint      => $po->minint,
+            maxint      => $po->maxint,
+            defvalue    => $po->defvalue,
+            description => $po->description,
+        };
+    }
+
+    my @o_obj = $self->options;
+    my @o;
+    for my $o (@o_obj) {
+        push @o, {
+            id             => $o->id,
+            value          => $o->value,
+            option_spec_id => $o->location_option_spec->id,
+            option_type    => $o->location_option_spec->option_type,
+        };
+    }
+
+    my %want_assets;
+    my %id2magic;
+    $want_assets{$self->id} = 1;
+    $id2magic{$self->id} = $t_obj->magic;
+
+    my $kids = $dbh->selectall_arrayref(
+	"select l.id, l.name, l.description, l.info, " .
+	"lt.id as lt_id, lt.name as lt_name, lt.magic " .
+	"from location l, location_type lt where " .
+	"l.located_in = ? and lt.id = l.location_type " .
+	"order by l.id", {Slice=>{}}, $self->id) || [];
+
+    my $n_hidden_children = 0;
+    my %rp;
+    my %fp;
+    my %bp;
+    my %rack_pos_labels;
+    my $n_children = @$kids;
+    my @racks;
+
+    if ($t_obj->magic & MAGIC_RACK) {
+
+	my $positions = $dbh->selectall_arrayref(
+	    "select l.id, lo.value from
+	    location l, location_option_spec los, location_option lo
+	    where
+	    l.located_in = ? and
+	    los.location_type = l.location_type and
+	    los.name = 'position' and
+	    lo.location = l.id and
+	    los.id = lo.location_option_spec",
+	    {Slice=>{}}, $self->id
+	);
+	my %kid2pos;
+	for my $kp (@$positions) {
+	    $kid2pos{$kp->{id}} = $kp->{value};
+	}
+
+	for my $kid (@$kids) {
+	    $id2magic{$kid->{id}} = $kid->{magic};
+	    if ($kid->{magic} & MAGIC_HIDDEN) {
+		$n_hidden_children++;
+		$want_assets{$kid->{id}} = 1;
+		my $rp = $kid2pos{$kid->{id}};
+		if (defined $rp) {
+		    $rp{$kid->{id}} = $rp;
+
+		    my $l = "$label, position $rp";
+		    if ($kid->{magic} & FIB_FRONT) {
+			$l .= " at the front";
+		    } elsif ($kid->{magic} & FIB_BACK) {
+			$l .= " at the back";
+		    } else {
+			$l .= " in the interior";
+		    }
+		    $rack_pos_labels{$kid->{id}} = $l;
+
+		    if ($kid->{magic} & FIB_FRONT) {
+			$fp{$rp} = $kid->{id};
+		    } elsif ($kid->{magic} & FIB_BACK) {
+			$bp{$rp} = $kid->{id};
+		    }
+		}
+	    }
+	}
+    } else {
+	for my $kid (@$kids) {
+	    $id2magic{$kid->{id}} = $kid->{magic};
+	    if ($kid->{magic} & MAGIC_RACK) {
+		# XXX bless to call
+		my $kid_obj = Location->retrieve($kid->{id});
+		push @racks, $kid_obj->as_hash;
+	    }
+	}
+    }
+
+my $sql = 
+	    "select a.id, a.location, p.hsize, p.vsize
+	    from asset a left join product p
+	    on a.product_id = p.id
+	    where
+	    a.location in (" . join(",",keys %want_assets) . ")";
+#print "$sql\n";
+    my $assets = $dbh->selectall_arrayref(
+	    "select
+	    a.id, a.location, a.serial_number, a.physaddr,
+	    p.hsize, p.vsize, p.name as product_name,
+	    e.name as manufacturer,
+	    m.address as mac
+	    from asset a
+	    join product p on a.product_id = p.id
+	    join entity e on p.manufacturer = e.id
+	    left join physaddr m on a.physaddr = m.id
+	    where
+	    a.location in (" . join(",",keys %want_assets) . ") order by a.id",
+	    {Slice=>{}}
+	);
+
+    my @assets;
+    for my $as (@$assets) {
+	my $loc_id = $as->{location};
+	my $pos = $rp{$loc_id};
+	my $hsize = $as->{hsize};
+	my $fib = 0;
+
+	if ($pos) {
+	    my $magic = $id2magic{$loc_id};
+	    if ($hsize == 1) {
+		$fib = (FIB_FRONT & $magic) | (FIB_BACK & $magic);
+	    } elsif ($hsize == 2) {
+		$fib = (FIB_FRONT & $magic) | FIB_INTERIOR | (FIB_BACK & $magic);
+	    } else {  # anything else assume full-size
+	    	$fib = FIB_FRONT | FIB_INTERIOR | FIB_BACK;
+	    }
+	}
+	$as->{serial_number} //= "";
+	$as->{mac}           //= "";
+	my $l = "$as->{manufacturer} $as->{product_name}";
+	$l .= ", $as->{serial_number}" if $as->{serial_number};
+	$l .= ", $as->{mac}" if $as->{mac};
+	push @assets, {
+	    id          => $as->{id},
+	    hsize       => $hsize,
+	    vsize       => $as->{vsize},
+	    location_id => $loc_id,
+	    label       => $l,
+	    position    => defined $pos ? 0+$pos : undef,
+	    fib         => defined $fib ? 0+$fib : undef, # front-interior-back
+	}
+    }
+
+    return {
+        id            => $self->id,
+        located_in    => $self->located_in ? $self->located_in->id : undef,
+        name          => $self->name,
+        description   => $self->description,
+        info          => $self->info,
+        location_type => {
+            id    => $t_obj->id,
+            name  => $t_obj->name,
+            magic => $t_obj->magic,
+        },
+        possible_options => \@po,
+        options          => \@o,
+	has_children     => $n_children > $n_hidden_children ? 1 : 0,
+	assets           => \@assets,
+	racks            => \@racks,
+	label            => $label,
+	front_positions  => \%fp,
+	back_positions   => \%bp,
+	rack_pos_labels  => \%rack_pos_labels,
+    };
+}
+
+sub as_hash_slow
+{
+    my $self = shift;
+    $self->isa_object_method('as_hash_slow');
     
     my $t_obj = $self->location_type;
     my @po_obj = $t_obj->possible_options;
@@ -98,7 +288,6 @@ sub as_hash
     my $n_hidden_children = 0;
     my $n_children = @c;
     my @racks;
-    my @positions;
     if ($t_obj->magic & MAGIC_RACK) {
 	for my $kid (@c) {
 	    my $magic = $kid->location_type->magic;
@@ -123,7 +312,7 @@ sub as_hash
 	for my $kid (@c) {
 	    my $magic = $kid->location_type->magic;
 	    if ($magic & MAGIC_RACK) {
-		push @racks, $kid->as_hash;
+		push @racks, $kid->as_hash_slow;
 	    }
 	}
     }
