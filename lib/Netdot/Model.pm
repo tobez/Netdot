@@ -1020,7 +1020,7 @@ sub search_all_tables {
    
     # Check if a table was specified
     my $table;
-    if ( $q =~ /(\S+):(.+)$/ ){
+    if ( $q =~ /(\w{3,}):(.+)$/ ){
 	$table = $1;
 	$q     = $2;
     }
@@ -1049,6 +1049,15 @@ sub search_all_tables {
 	}
 	foreach my $col ( @cols ){
 	    my @res = $tbl->search_like($col=>$q);
+	    if ($tbl =~ /^(.*)_option$/i) {
+		$tbl = $1;
+		my $link = lc $tbl;
+		my @r;
+		for my $opt (@res) {
+		    push @r, $opt->$link;
+		}
+		@res = @r;
+	    }
 	    map { $results{$tbl}{$_->id} = $_ } @res;
 	}
 	last if $table;
