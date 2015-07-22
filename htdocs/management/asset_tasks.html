@@ -235,6 +235,14 @@ if ( $submit ){
 		push @where, { $field => { '-like' => '%'.$search.'%' } };
 	    }
 	    push @assets, Asset->search_where(\@where);
+
+	    my $dbh = Netdot::Model->db_Main;
+	    my $ids = $dbh->selectcol_arrayref(
+		"select asset from asset_option where value like ? order by asset",
+		{}, "%$search%");
+	    for my $id (@$ids) {
+		push @assets, Asset->retrieve($id);
+	    }
 	}else{
 	    # No criteria given. Get all.
 	    @assets = Asset->retrieve_all();
