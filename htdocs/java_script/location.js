@@ -454,13 +454,21 @@ Location.prototype.view_rack_table = function (loc, o) {
 			    var fib_test = possible_fibs[g];
 			    if (L.rack_downwards) {
 				for (var k = 0; k < select_vsize; k++) {
-				    if (n-k <= 0 || (occupied[n-k] && occupied[n-k][fib_test]))
+				    if (n-k <= 0) {
 					ok = 0;
+				    } else if (occupied[n-k] && occupied[n-k][fib_test]) {
+					if (!occupied[n-k][fib_test].highlight)
+					    ok = 0;
+				    }
 				}
 			    } else {
 				for (var k = 0; k < select_vsize; k++) {
-				    if (n+k > L.rack_size || (occupied[n+k] && occupied[n+k][fib_test]))
+				    if (n+k > L.rack_size) {
 					ok = 0;
+				    } else if (occupied[n+k] && occupied[n+k][fib_test]) {
+					if (!occupied[n+k][fib_test].highlight)
+					    ok = 0;
+				    }
 				}
 			    }
 			}
