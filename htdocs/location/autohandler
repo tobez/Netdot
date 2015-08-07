@@ -609,3 +609,14 @@ $(function () {
         };
     </%init>
 </%method>
+
+<%perl>
+
+if ( my $next = $m->fetch_next ){
+#    if ( $page ){
+#	$m->call_next(page => $page);
+#    }else{
+	$m->call_next();
+#    }
+}
+</%perl>
