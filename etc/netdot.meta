@@ -5079,7 +5079,7 @@ $meta = {
         description => 'Device interface where this address is configured',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Nullify',
           method => 'ips',
           table => 'Interface'
         },

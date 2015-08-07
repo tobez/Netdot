@@ -129,6 +129,7 @@ sub handle_resource {
 			  $resource, 
 			  $self->{request}->args,
 			  $self->remote_ip,
+			  $self->remote_ip, 
 			  $headers->{'User-Agent'}
 		  ));
 
@@ -594,6 +595,29 @@ sub check_accept_header{
 sub throw {
     my ($self, %args) = @_;
     return $self->SUPER::throw_rest(%args);
+}
+
+##################################################################
+
+=head2 remote_ip 
+    
+    Handle API differences between Apache versions
+    
+  Arguments: 
+    None
+  Returns:
+    Client IP (string)
+  Examples:
+    my $client_ip = $rest->remote_ip()
+=cut
+
+sub remote_ip {
+    my $self = shift;
+    if ($self->{request}->connection->can("remote_ip")) {
+        $self->{request}->connection->remote_ip;  # 2.2
+    } else {
+        $self->{request}->connection->client_ip;  # 2.4
+    }
 }
 
 ##################################################################

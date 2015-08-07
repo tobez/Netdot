@@ -574,7 +574,7 @@ sub insert {
 	snmp_polling       => 0,
 	snmp_down          => 0,
 	snmp_conn_attempts => 0,
-	auto_dns           => $class->config->get('UPDATE_DEVICE_IP_NAMES'),
+	auto_dns           => $class->config->get('DEVICE_IP_NAME_AUTO_UPDATE_DEFAULT'),
 	);
 
     # Add given args (overrides defaults).
@@ -1077,6 +1077,7 @@ sub get_snmp_info {
 	# These are all the vlans that are enabled on this port.
 	if ( my $vm = $hashes{'i_vlan_membership'}->{$iid} ){
 	    foreach my $vid ( @$vm ){
+		next unless $vid; # we've seen undef's
 		if ( exists $IGNOREDVLANS{$vid} ){
 		    $logger->debug(sub{"Device::get_snmp_info: $args{host} VLAN $vid ignored ".
 					   "per configuration option (IGNOREVLANS)"});
@@ -2413,6 +2414,7 @@ sub get_fwt {
 
   Arguments:
     no_delete_name - Do not attempt to delete name DNS record
+    delete_ips - Optionally delete IP addresses associated with this device
   Returns:
     True if successful
 
@@ -2425,11 +2427,14 @@ sub delete {
     my ($self, %argv) = @_;
     $self->isa_object_method('delete');
 
-    # We don't want to delete dynamic addresses
-    if ( my $ips = $self->get_ips ){
-	foreach my $ip ( @$ips ) {
-	    if ( $ip->status && $ip->status->name eq 'Dynamic' ){
-		$ip->update({interface=>undef});
+    if ( $argv{delete_ips} ){
+	if ( my $ips = $self->get_ips ){
+	    foreach my $ip ( @$ips ) {
+		# We don't want to delete dynamic addresses
+		if ( $ip->status && $ip->status->name eq 'Dynamic' ){
+		    next;
+		}
+		$ip->delete();
 	    }
 	}
     }
@@ -2444,7 +2449,7 @@ sub delete {
 	# Otherwise, we do it here.
 	if ( my $rr = RR->retrieve($rrid) ){
 	    $rr->delete() unless $rr->sub_records;
-	}	
+	}
     }
     return 1;
 }
@@ -2575,7 +2580,9 @@ sub is_in_downtime {
       - Validate various arguments
     
   Arguments:
-    Hash ref with Device fields
+    Hash ref with:
+      - Device fields
+      - Flag to disable last_updated timestamp
   Returns:
     See Class::DBI update()
   Example:
@@ -2586,8 +2593,11 @@ sub is_in_downtime {
 sub update {
     my ($self, $argv) = @_;
     
-    # Update the timestamp
-    $argv->{last_updated} = $self->timestamp;
+    # Update the timestamp unless we're told not to
+    my $no_tstamp = delete $argv->{no_timestamp};
+    unless ( $no_tstamp ){
+	$argv->{last_updated} = $self->timestamp;
+    }
 
     if ( exists $argv->{snmp_managed} && !($argv->{snmp_managed}) ){
 	# Means it's being set to 0 or undef
@@ -3826,6 +3836,52 @@ sub set_interfaces_auto_dns {
     return 1;
 }
 
+###############################################################
+=head2 _do_auto_dns - Generate DNS records for all interface IPs
+
+    Arguments
+      None
+    Returns
+      Nothing
+    Example:
+     $device->do_auto_dns();
+=cut
+
+sub do_auto_dns {
+    my ($self, %argv) = @_;
+    
+    my $host = $self->fqdn;
+
+    # Get addresses that the main Device name resolves to
+    my @hostnameips;
+    if ( @hostnameips = Netdot->dns->resolve_name($host) ){
+	$logger->debug(sub{ sprintf("Device::_update_interfaces: %s resolves to: %s",
+				    $host, (join ", ", @hostnameips))});
+    }
+    
+    my @my_ips;
+    foreach my $ip ( @{ $self->get_ips() } ){
+	if ( $ip->version == 6 && $ip->is_link_local ){
+	    # Do not create AAAA records for link-local addresses
+	    next;
+	}else{
+	    push @my_ips, $ip;
+	}
+    }
+    my $num_ips = scalar(@my_ips);
+    foreach my $ip ( @my_ips ){
+	# We do not want to stop the process if a name update fails
+	eval {
+	    $ip->update_a_records(hostname_ips=>\@hostnameips, num_ips=>$num_ips);
+	};
+	if ( my $e = $@ ){
+	    $logger->error(sprintf("Error updating A record for IP %s: %s",
+				   $ip->address, $e));
+	}
+    }
+    1;
+}
+
 
 
 
@@ -4062,7 +4118,7 @@ sub _get_snmp_session {
 	my $max = $self->config->get('MAX_SNMP_CONNECTION_ATTEMPTS');
 	my $count = $self->snmp_conn_attempts || 0;
 	$count++;
-	$self->update({snmp_conn_attempts=>$count});
+	$self->update({snmp_conn_attempts=>$count, no_timestamp=>1});
 	$logger->info(sprintf("Device::_get_snmp_session: %s: Failed connection attempts: %d",
 			      $host, $count));
 	if ( $max == 0 ){
@@ -4070,7 +4126,7 @@ sub _get_snmp_session {
 	    return;
 	}
 	if ( $count >= $max ){
-	    $self->update({snmp_down=>1});
+	    $self->update({snmp_down=>1, no_timestamp=>1});
 	}
     }
 
@@ -6281,31 +6337,22 @@ sub _update_interfaces {
     }
     
     ##############################################
-    # remove ip addresses that no longer exist
+    # Disconnect IP addresses no longer reported
     while ( my ($address, $obj) = each %old_ips ){
-	# Check that it still exists 
-	# (could have been deleted if its interface was deleted)
 	next unless ( defined $obj );
-	next if ( ref($obj) =~ /deleted/i );
 
-	# Don't delete if interface was added manually, which means that
+	# Don't disconnect if interface was added manually, which means that
 	# the IP was probably manually added too.
 	next if ($obj->interface && $obj->interface->doc_status eq 'manual');
 
-	# Don't delete dynamic addresses, just unset the interface
-	if ( $obj->status && $obj->status->name eq 'Dynamic' ){
-	    $obj->update({interface=>undef});
-	    next;
-	}
-
-	# If interface is set to "Ignore IP", don't delete existing IP
+	# If interface is set to "Ignore IP", skip
 	if ( $obj->interface && $obj->interface->ignore_ip ){
 	    $logger->debug(sub{sprintf("%s: IP %s not deleted: %s set to Ignore IP", 
 				       $host, $obj->address, $obj->interface->get_label)});
 	    next;
 	}
 
-	# Don't delete snmp_target address unless updating via UI
+	# Skip snmp_target address unless updating via UI
 	if ( $ENV{REMOTE_USER} eq 'netdot' && $self->snmp_target && 
 	     $self->snmp_target->id == $obj->id ){
 	    $logger->debug(sub{sprintf("%s: IP %s is snmp target. Skipping delete",
@@ -6313,45 +6360,21 @@ sub _update_interfaces {
 	    next;
 	}
 
+	# Disconnect the IP from the interface (do not delete)
 	$logger->info(sprintf("%s: IP %s no longer exists.  Removing.", 
 			      $host, $obj->address));
-	$obj->delete(no_update_tree=>1);
+	$obj->update({interface=>undef});
     }
     
     ##############################################################
     # Update A records for each IP address
-    
     if ( $self->config->get('UPDATE_DEVICE_IP_NAMES') && $self->auto_dns ){
-	
-	# Get addresses that the main Device name resolves to
-	my @hostnameips;
-	if ( @hostnameips = Netdot->dns->resolve_name($host) ){
-	    $logger->debug(sub{ sprintf("Device::_update_interfaces: %s resolves to: %s",
-					$host, (join ", ", @hostnameips))});
-	}
-	
-	my @my_ips;
-	foreach my $ip ( @{ $self->get_ips() } ){
-	    if ( $ip->version == 6 && $ip->is_link_local ){
-		# Do not create AAAA records for link-local addresses
-		next;
-	    }else{
-		push @my_ips, $ip;
-	    }
-	}
-	my $num_ips = scalar(@my_ips);
-	foreach my $ip ( @my_ips ){
-	    # We do not want to stop the process if a name update fails
-	    eval {
-		$ip->update_a_records(hostname_ips=>\@hostnameips, num_ips=>$num_ips);
-	    };
-	    if ( my $e = $@ ){
-		$logger->error(sprintf("Error updating A record for IP %s: %s",
-				       $ip->address, $e));
-	    }
-	}
+	$self->do_auto_dns();
     }
+
+    1;
 }
+
 
 ###############################################################
 # Add/Update/Delete BGP Peerings
@@ -6545,12 +6568,15 @@ __PACKAGE__->set_sql(no_type => qq{
     });
 
 __PACKAGE__->set_sql(by_product_os => qq{
-       SELECT d.id, a.product_id, d.os
-         FROM device d, asset a
-        WHERE d.asset_id = a.id
-          AND d.os is NOT NULL 
-          AND d.os != '0'
-     ORDER BY a.product_id,d.os
+         SELECT  d.id, p.id as prod_id, p.name as prod, p.latest_os as latest_os,
+                 m.id as manuf_id, m.name as manuf, d.os as os
+           FROM  device d
+ LEFT OUTER JOIN (asset a, product p, entity m) ON a.id=d.asset_id
+             AND a.product_id=p.id
+             AND m.id=p.manufacturer
+           WHERE d.os is NOT NULL 
+             AND d.os != '0'
+        ORDER BY p.name,d.os
     });
 
 __PACKAGE__->set_sql(for_os_mismatches => qq{
