@@ -361,11 +361,19 @@ sub form_field {
         my $type = $mcol->sql_type;
 
 	if ( $type =~ /^varchar|timestamp|integer|numeric|bigint$/ ){
-	    $value = $self->text_field(object=>$o, table=>$table, column=>$column, edit=>$args{edit}, 
-				       default=>$args{default}, defaults=>$args{defaults}, linkPage=>$args{linkPage}, 
-				       returnAsVar=>1, 
-				       htmlExtra=>$args{htmlExtra}, shortFieldName=>$args{shortFieldName});
-	    
+	    if ($column eq "hsize") {
+		$value = $self->select_from_list(object=>$o, table => $table, column=> $column, values => [0,1,2,3],
+						  edit=>$args{edit},
+						  returnAsVar=>1,
+						  htmlExtra=>$args{htmlExtra},
+						  noNull => 1,
+						  shortFieldName=>$args{shortFieldName});
+	    } else {
+		$value = $self->text_field(object=>$o, table=>$table, column=>$column, edit=>$args{edit}, 
+					   default=>$args{default}, defaults=>$args{defaults}, linkPage=>$args{linkPage}, 
+					   returnAsVar=>1, 
+					   htmlExtra=>$args{htmlExtra}, shortFieldName=>$args{shortFieldName});
+	    }
 	}elsif ( $type eq 'date' ){
 	    $value = $self->date_field(object=>$o, table=>$table, column=>$column, edit=>$args{edit}, 
 				       default=>$args{default}, returnAsVar=>1, shortFieldName=>$args{shortFieldName} );
@@ -485,6 +493,92 @@ sub help_link {
 
 ############################################################################
 
+=head2 select_from_list
+
+    This method deals with fields whose values are restricted to a list.
+    When the interface is in "edit" mode, the user is presented with a drop-down list of
+    possible values.
+    If not editing, this function only returns the value.
+
+ Arguments:
+    Hash of key/value pairs.  Keys are:
+    - object:        CDBI object, can be null if a table object is included
+    - table:         Name of table in DB. (required if object is null)
+    - column:        Name of field in DB.
+    - edit:          True if editing, false otherwise.
+    - values:        A list of possible values.
+    - noNull:        (optional) Null is not a possible value
+    - htmlExtra:     (optional) extra html you want included in the output. Common
+                      use would be to include style="width: 150px;" and the like.
+    - linkPage:      (optional) Make the printed value a link
+                     to itself via some page (i.e. view.html) 
+                     (requires that column value be defined)
+    - returnAsVar:   (optional) If true, output is returned as a variable.
+                     Otherwise, output is printed to STDOUT
+    - shortFieldName: Whether to set the input tag name as the column name or
+                     the format used by form_to_db()
+  Returns:
+    If returnAsVar, returns variable containing HTML code.  Otherwise, prints HTML code to STDOUT
+    or False if failure
+  Examples:
+
+    $ui->select_from_list(object=>$o, column=>"hsize", values => [1,2,3]);
+
+=cut
+
+sub select_from_list{
+    my ($self, %args) = @_;
+    my ($o, $column) = @args{'object', 'column'};
+    $self->throw_fatal("Need to pass object or table name") unless ( $o || $args{table} );
+    my $table  = ($o ? $o->short_class : $args{table});
+
+    my $output;
+    
+    $args{htmlExtra} = '' if ( !defined $args{htmlExtra} );
+
+    my $name;
+    my $id = ($o ? $o->id : 'NEW');
+    if( $args{shortFieldName} ) {
+	$name = $column;
+    } else {
+	$name = $table . '__' . $id . '__' . $column;
+    }
+    if( $args{edit} ){
+        my ($count, @fo);
+
+        if ($args{values}) {
+	    @fo = @{$args{values}};
+            # if an object was passed we use it to obtain table name, id, etc
+            # as well as add an initial element to the selection list.
+             $output .= sprintf('<select name="%s" id="%s" %s>', 
+				   $name, $name, $args{htmlExtra});
+	     $output .= sprintf('<option value="" selected>-- Select --</option>');
+
+            foreach my $fo ( @fo ){
+		my $selected = '';
+		if ($o && $o->$column eq $fo) {
+		    $selected = "selected";
+		}
+                $output .= sprintf('<option value="%s" %s>%s</option>', 
+				   $fo, $selected, $fo);
+            }
+	    $output .= sprintf('<option value="">[null]</option>') unless $args{noNull};
+            $output .= sprintf('</select>');
+        }
+
+    }else{
+        $output .= sprintf('%s', ($o->$column // ''));
+    }
+
+    if ( $args{returnAsVar} == 1 ) {
+        return $output;
+    }else{
+        print $output;
+    }
+}
+
+############################################################################
+
 =head2 select_lookup
 
     This method deals with fields that are foreign keys.  When the interface is in "edit" mode, the user
@@ -594,8 +688,9 @@ sub select_lookup{
 				$select_hsize = "&select_hsize=" . $o->product_id->hsize;
 			}
 			$output .= qq|<input type="hidden" id="$name" name="$name" value="$id">|;
+			my $link_page = $args{linkPage} || $self->table_view_page("Location");
 			$output .= qq|<a id="visible_$name" class="hand" onClick="openwindow('|.
-				qq|$args{linkPage}?select_id=$name$pass_id&visible_id=visible_$name&showheader=0&selected=1&dowindow=1|.
+				qq|$link_page?select_id=$name$pass_id&visible_id=visible_$name&showheader=0&selected=1&dowindow=1|.
 				qq|$select_vsize$select_hsize');">$label</a>|;
 		}
 	}
@@ -683,6 +778,17 @@ sub select_lookup{
 	}else{
 	    $output .= sprintf('<a href="%s?id=%d"> %s </a>', 
 			       $args{linkPage}, $o->$column->id, $o->$column->get_label);
+	}
+    }elsif ($column eq "location"){
+	my $oo = $o;
+	while (!$oo->$column && $oo->parent) {
+	    $oo = $oo->parent;
+	}
+	if ($oo->$column) {
+	    $output .= sprintf('<a href="%s?id=%d"> %s </a>', 
+			       $args{linkPage}, $oo->$column->id, $oo->$column->get_label);
+	} else {
+	    $output .= sprintf('%s', ($o->$column ? $o->$column->get_label : ''));
 	}
     }else{
         $output .= sprintf('%s', ($o->$column ? $o->$column->get_label : ''));
