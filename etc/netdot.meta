@@ -5655,6 +5655,19 @@ $meta = {
         tag => 'Comments',
         type => 'text'
       },
+      contactlist => {
+        default => '',
+        description => 'List of contacts for this Location',
+        length => '',
+        linksto => {
+          cascade => 'Nullify',
+          method => 'locations',
+          table => 'ContactList'
+        },
+        nullable => 1,
+        tag => 'Contact List',
+        type => 'bigint'
+      },
     },
     description => 'Location',
     has_history => 0,
