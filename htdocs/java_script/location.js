@@ -209,6 +209,35 @@ Location.prototype.view = function ($div, opts) {
 
     $container.append($tab);
 
+    var $assets_list;
+    if (this.loc.assets.length) {
+	var $list = $("<div class='location_list'></div>");
+	var $head = $("<div class='location_row header'></div>");
+	$head.append("<span class='location_col type'><b>Assets at this location</b></span>");
+	$list.append($head);
+	for (var i = 0; i < this.loc.assets.length; i++) {
+	    var as = this.loc.assets[i];
+	    (function (){
+		var url = netdot_path +
+		    "management/view.html?showheader=0&table=Asset&dowindow=1&id=" +
+		    as.id;
+		var $a = $("<a href='#'></a>");
+		$a.text(as.label);
+		$a.attr("title", as.label);
+		$a.click(function () {
+		    openwindow(url);
+		    return false;
+		});
+		var $row = $("<div class='location_row'></div>");
+		var $col = $("<span class='location_col type'></span>");
+		$col.append($a);
+		$row.append($col);
+		$list.append($row);
+	    }());
+	}
+	$assets_list = $list;
+    }
+
     if (this.is_rack) {
 	$container.append("<br/>");
 	$container.append("Rack diagram");
@@ -232,6 +261,28 @@ Location.prototype.view = function ($div, opts) {
 		return false;
 	    }.bind(this));
 	    $container.append(" ");
+	}
+
+	if (select_id) {
+	    var button_text;
+	    if (select_vsize && select_hsize) {
+		button_text = '... or just assign the asset to the rack';
+	    } else {
+		button_text = 'Assign this location to the asset';
+	    }
+	    $container.append("<input class='submit btn' type='submit' value='" + button_text + "'/>");
+	    $container.find(".submit").click(function () {
+		var $sel = $("#" + select_id, window.opener.document);
+		$sel.val(this.loc.id);
+		if (visible_id) {
+		    var $a = $("#" + visible_id, window.opener.document);
+		    $a.text(this.loc.label);
+		}
+		window.close();
+		return false;
+	    }.bind(this));
+
+	    $container.append(" ");
 	    $container.append("<input class='cancel btn' type='button' value='Cancel'/>");
 	    $container.find(".cancel").click(function () {
 		window.close();
@@ -239,8 +290,10 @@ Location.prototype.view = function ($div, opts) {
 	    });
 	    $container.append("<br/>");
 	    $container.append("<br/>");
-	} else if (select_id) {
-	    $container.append("<br/><span class='mock'>CANNOT ASSIGN A ZERO-DIMENSION ASSET TO A RACK</span><br/><br/>");
+	}
+
+	if (this.loc.assets.length) {
+	    $container.append($assets_list);
 	}
 
 	var $rack_table = this.view_rack_table(this.loc);
@@ -271,31 +324,7 @@ Location.prototype.view = function ($div, opts) {
 	$container.append("<br/>");
 
 	if (this.loc.assets.length) {
-	    var $list = $("<div class='location_list'></div>");
-	    var $head = $("<div class='location_row header'></div>");
-	    $head.append("<span class='location_col type'><b>Assets at this location</b></span>");
-	    $list.append($head);
-	    for (var i = 0; i < this.loc.assets.length; i++) {
-		var as = this.loc.assets[i];
-		(function (){
-		    var url = netdot_path +
-		 	"management/view.html?showheader=0&table=Asset&dowindow=1&id=" +
-			as.id;
-		    var $a = $("<a href='#'></a>");
-		    $a.text(as.label);
-		    $a.attr("title", as.label);
-		    $a.click(function () {
-			openwindow(url);
-			return false;
-		    });
-		    var $row = $("<div class='location_row'></div>");
-		    var $col = $("<span class='location_col type'></span>");
-		    $col.append($a);
-		    $row.append($col);
-		    $list.append($row);
-		}());
-	    }
-	    $container.append($list);
+	    $container.append($assets_list);
 	} else {
 	    $container.append("<span>There are no assets at this location</span>");
 	}
