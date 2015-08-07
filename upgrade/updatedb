@@ -442,6 +442,7 @@ EOF
 	    { name => "id", type => "bigint(20)", is_id => 1, },
 	    { name => "name", type => "varchar(64)", is_name => 1, },
 	    { name => "info", type => "mediumtext", is_info => 1, },
+	    { name => "contactlist", type => "bigint(20)", is_contactlist => 1, },
 
 	    { name => "aliases", type => "varchar(255)", descr => "Alternative names for this site", },
 	    # { name => "availability", type => "bigint", },
@@ -495,6 +496,7 @@ EOF
 
 	    { name => "dimensions", type => "varchar(32)", },
 	]);
+    push @statements, migrate_to_location(table => "cage", skip_table => 1, fields => []);
 
     push @statements, "ALTER TABLE asset ADD COLUMN location bigint;";
     push @statements, "ALTER TABLE asset ADD CONSTRAINT fk_asset_location FOREIGN KEY (location) REFERENCES location(id);";
@@ -644,6 +646,7 @@ sub migrate_to_location
 	next if $f->{is_id};
 	next if $f->{is_name};
 	next if $f->{is_info};
+	next if $f->{is_contactlist};
 	next if $f->{is_parent};
 	my $o_name = $f->{option_name} || $f->{name};
 	my $descr = $f->{descr} || $f->{option_name} || $f->{name};
@@ -682,6 +685,7 @@ EOF
     my $id;
     my $name;
     my $info;
+    my $contactlist;
     my $parent;
     for my $f (@{$o{fields}}) {
 	next if $f->{is_new};
@@ -689,6 +693,7 @@ EOF
 	$id = $f->{name} if $f->{is_id};
 	$name = $f->{name} if $f->{is_name};
 	$info = $f->{name} if $f->{is_info};
+	$contactlist = $f->{name} if $f->{is_contactlist};
 	$parent = $f->{name} if $f->{is_parent};
     }
     $proc .= "  DECLARE cur CURSOR FOR SELECT ";
@@ -729,6 +734,10 @@ EOF
 	push @n, "info";
 	push @v, "v_$info";
     }
+    if (defined $contactlist) {
+	push @n, "contactlist";
+	push @v, "v_$contactlist";
+    }
     $proc .= "    INSERT INTO location (" . join(",",@n);
     $proc .= ") VALUES (" . join(",", @v);
     $proc .= ");\n";
@@ -742,6 +751,7 @@ EOF
 	next if $f->{is_id};
 	next if $f->{is_name};
 	next if $f->{is_info};
+	next if $f->{is_contactlist};
 	next if $f->{is_parent};
 	$proc .= <<EOF;
     IF v_$f->{name} IS NOT NULL THEN
