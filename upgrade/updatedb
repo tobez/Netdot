@@ -736,6 +736,19 @@ EOF
 	ftable    => "site",
 	new_field => "farend1");
     push @statements, "ALTER TABLE sitelink CHANGE farend1 farend BIGINT;";
+    migrate_pointer(
+    	table     => "person",
+	old_field => "location",
+	ftable    => "site",
+	new_field => "loc_site");
+    migrate_pointer(
+    	table     => "person",
+	old_field => "room",
+	ftable    => "room",
+	new_field => "location");
+    push @statements, "UPDATE person SET location = COALESCE(location, loc_site);";
+    push @statements, "CALL drop_fk('person', 'loc_site');";
+    push @statements, "ALTER TABLE person DROP COLUMN loc_site;";
 
     push @statements, <<EOF;
 CREATE TABLE `locationpicture` (
