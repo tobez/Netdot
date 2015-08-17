@@ -217,6 +217,8 @@ Location.prototype.view = function ($div, opts) {
 	$list.append($head);
 	for (var i = 0; i < this.loc.assets.length; i++) {
 	    var as = this.loc.assets[i];
+	    if (as.location_id != this.loc.id)
+		continue;
 	    (function (){
 		var url = netdot_path +
 		    "management/view.html?showheader=0&table=Asset&dowindow=1&id=" +
