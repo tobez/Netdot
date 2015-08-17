@@ -7802,8 +7802,8 @@ $meta = {
       ]
     }
   },
-  ClosetPicture => {
-    table_db_name => 'closetpicture',
+  LocationPicture => {
+    table_db_name => 'locationpicture',
     columns => {
       bindata => {
         default => '',
@@ -7813,17 +7813,17 @@ $meta = {
         tag => 'Picture',
         type => 'longblob'
       },
-      closet => {
+      location => {
         default => '',
         description => '',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'pictures',
-          table => 'Closet'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Closet',
+        tag => 'Location',
         type => 'bigint'
       },
       filename => {
@@ -7867,7 +7867,7 @@ $meta = {
         type => 'text'
       },
     },
-    description => 'A Closet Picture.  Pictures are stored in the database in binary format.',
+    description => 'A Location Picture.  Pictures are stored in the database in binary format.',
     has_history => 0,
     index => [],
     isjoin => '0',
@@ -7877,7 +7877,7 @@ $meta = {
     primary_key => 'id',
     unique => [
       [
-        'filename', 'closet'
+        'filename', 'location'
       ]
     ],
     views => {
@@ -7886,195 +7886,7 @@ $meta = {
         'filesize',
         'filetype',
         'bindata',
-        'closet',
-        'info',
-      ],
-      brief => [
-        'filename',
-        'filetype',
-        'info',
-      ]
-    }
-  },
-  FloorPicture => {
-    table_db_name => 'floorpicture',
-    columns => {
-      bindata => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => 'Picture',
-        type => 'longblob'
-      },
-      floor => {
-        default => '',
-        description => '',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'pictures',
-          table => 'Floor'
-        },
-        nullable => 0,
-        tag => 'Floor',
-        type => 'bigint'
-      },
-      filename => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Name',
-        type => 'varchar'
-      },
-      filesize => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Size',
-        type => 'varchar'
-      },
-      filetype => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Type',
-        type => 'varchar'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      info => {
-        default => '',
-        description => 'Comments',
-        length => '',
-        nullable => 1,
-        tag => 'Comments',
-        type => 'text'
-      },
-    },
-    description => 'A Floor Picture.  Pictures are stored in the database in binary format.',
-    has_history => 0,
-    index => [],
-    isjoin => '0',
-    label => [
-      'filename'
-    ],
-    primary_key => 'id',
-    unique => [
-      [
-        'filename', 'floor'
-      ]
-    ],
-    views => {
-      all => [
-        'filename',
-        'filesize',
-        'filetype',
-        'bindata',
-        'floor',
-        'info',
-      ],
-      brief => [
-        'filename',
-        'filetype',
-        'info',
-      ]
-    }
-  },
-  SitePicture => {
-    table_db_name => 'sitepicture',
-    columns => {
-      bindata => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => 'Picture',
-        type => 'longblob'
-      },
-      site => {
-        default => '',
-        description => '',
-        length => '',
-        linksto => {
-          cascade => 'Delete',
-          method => 'pictures',
-          table => 'Site'
-        },
-        nullable => 0,
-        tag => 'Site',
-        type => 'bigint'
-      },
-      filename => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Name',
-        type => 'varchar'
-      },
-      filesize => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Size',
-        type => 'varchar'
-      },
-      filetype => {
-        default => '',
-        description => '',
-        length => '64',
-        nullable => 0,
-        tag => 'File Type',
-        type => 'varchar'
-      },
-      id => {
-        default => '',
-        description => '',
-        length => '',
-        nullable => 0,
-        tag => undef,
-        type => 'bigint'
-      },
-      info => {
-        default => '',
-        description => 'Comments',
-        length => '',
-        nullable => 1,
-        tag => 'Comments',
-        type => 'text'
-      },
-    },
-    description => 'A Site Picture.  Pictures are stored in the database in binary format.',
-    has_history => 0,
-    index => [],
-    isjoin => '0',
-    label => [
-      'filename'
-    ],
-    primary_key => 'id',
-    unique => [
-      [
-        'filename', 'site'
-      ]
-    ],
-    views => {
-      all => [
-        'filename',
-        'filesize',
-        'filetype',
-        'bindata',
-        'site',
+        'location',
         'info',
       ],
       brief => [
