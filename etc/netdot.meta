@@ -994,17 +994,17 @@ $meta = {
   BackboneCable => {
     table_db_name => 'backbonecable',
     columns => {
-      end_closet => {
+      end_location => {
         default => '',
-        description => 'Closet where this cable terminates',
+        description => 'Location where this cable terminates',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'backbones_end',
-          table => 'Closet'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Destination Closet',
+        tag => 'Destination Location',
         type => 'bigint'
       },
       id => {
@@ -1060,17 +1060,17 @@ $meta = {
         tag => 'Owned by',
         type => 'bigint'
       },
-      start_closet => {
+      start_location => {
         default => '',
-        description => 'Closet where this cable originates',
+        description => 'Location where this cable originates',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'backbones_start',
-          table => 'Closet'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Origin Closet',
+        tag => 'Origin Location',
         type => 'bigint'
       },
       type => {
@@ -1094,10 +1094,10 @@ $meta = {
         'name'
       ],
       [
-        'start_closet'
+        'start_location'
       ],
       [
-        'end_closet'
+        'end_location'
       ]
     ],
     isjoin => '0',
@@ -1116,15 +1116,15 @@ $meta = {
         'type',
         'owner',
         'installdate',
-        'start_closet',
-        'end_closet',
+        'start_location',
+        'end_location',
         'length',
         'info'
       ],
       brief => [
         'name',
-        'start_closet',
-        'end_closet'
+        'start_location',
+        'end_location'
       ]
     }
   },
@@ -1805,15 +1805,15 @@ $meta = {
       },
       farend => {
         default => '',
-        description => 'The remote Site for this Link',
+        description => 'The remote Location for this Link',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'farlinks',
-          table => 'Site'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Destination (Site)',
+        tag => 'Destination (Location)',
         type => 'bigint'
       },
       id => {
@@ -1842,19 +1842,19 @@ $meta = {
       },
       nearend => {
         default => '',
-        description => 'The local Site for this Link',
+        description => 'The local Location for this Link',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'nearlinks',
-          table => 'Site'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Origin (Site)',
+        tag => 'Origin (Location)',
         type => 'bigint'
       }
     },
-    description => 'A Link between two Sites.  A Site Link can consist of one or more circuits',
+    description => 'A Link between two Locations.  A Site Link can consist of one or more circuits',
     has_history => 0,
     index => [],
     isjoin => '0',
@@ -3860,8 +3860,8 @@ $meta = {
       ],
     },
   },
-  EntitySite => {
-    table_db_name => 'entitysite',
+  EntityLocation => {
+    table_db_name => 'entitylocation',
     columns => {
       entity => {
         default => '',
@@ -3884,43 +3884,43 @@ $meta = {
         tag => undef,
         type => 'bigint'
       },
-      site => {
+      location => {
         default => '',
         description => '',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'entities',
-          table => 'Site'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Site',
+        tag => 'Location',
         type => 'bigint'
       }
     },
-    description => 'Entity to Site join table',
+    description => 'Entity to Location join table',
     has_history => 0,
     index => [],
     isjoin => '1',
     label => [
       'entity',
-      'site'
+      'location'
     ],
     primary_key => 'id',
     unique => [
       [
         'entity',
-        'site'
+        'location'
       ]
     ],
     views => {
       all => [
         'entity',
-        'site'
+        'location'
       ],
       brief => [
         'entity',
-        'site'
+        'location'
       ]
     }
   },
@@ -7644,20 +7644,20 @@ $meta = {
       ]
     }
   },
-  SiteSubnet => {
-    table_db_name => 'sitesubnet',
+  LocationSubnet => {
+    table_db_name => 'locationsubnet',
     columns => {
-      site => {
+      location => {
         default => '',
         description => '',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'subnets',
-          table => 'Site'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Site',
+        tag => 'Location',
         type => 'bigint'
       },
       id => {
@@ -7682,29 +7682,29 @@ $meta = {
         type => 'bigint'
       }
     },
-    description => 'Site to Subnet join table',
+    description => 'Location to Subnet join table',
     has_history => 0,
     index => [],
     isjoin => '1',
     label => [
       'subnet',
-      'site'
+      'location'
     ],
     primary_key => 'id',
     unique => [
       [
         'subnet',
-        'site'
+        'location'
       ]
     ],
     views => {
       all => [
         'subnet',
-        'site'
+        'location'
       ],
       brief => [
         'subnet',
-        'site'
+        'location'
       ]
     }
   },
