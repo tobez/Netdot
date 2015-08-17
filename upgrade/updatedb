@@ -359,6 +359,80 @@ sub upg_106_107 {
 #########################################################################
 sub upg_107_108 {
     if ( $dbms eq 'mysql' ) {
+	push @statements, <<EOF;
+DROP PROCEDURE IF EXISTS drop_fk;
+delimiter //
+CREATE PROCEDURE drop_fk(tab varchar(64), col varchar(64))
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE fk varchar(64);
+  DECLARE cur CURSOR FOR SELECT CONSTRAINT_NAME from INFORMATION_SCHEMA.KEY_COLUMN_USAGE where
+    TABLE_NAME = tab AND COLUMN_NAME = col
+    AND CONSTRAINT_SCHEMA = SCHEMA()
+    AND TABLE_SCHEMA = SCHEMA()
+    AND REFERENCED_TABLE_NAME IS NOT NULL;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+
+read_loop: LOOP
+    FETCH cur INTO fk;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    IF fk IS NOT NULL THEN
+      SET \@sql = CONCAT('ALTER TABLE ', tab, ' DROP foreign key ', fk);
+      PREPARE stmt FROM \@sql;
+      EXECUTE stmt;
+      DEALLOCATE PREPARE stmt;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+delimiter ;
+EOF
+
+	push @statements, <<EOF;
+DROP PROCEDURE IF EXISTS drop_2k;
+delimiter //
+CREATE PROCEDURE drop_2k(tab varchar(64), col1 varchar(64), col2 varchar(64))
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE idx_name varchar(64);
+  DECLARE cur CURSOR FOR SELECT a.CONSTRAINT_NAME
+    from INFORMATION_SCHEMA.KEY_COLUMN_USAGE a, INFORMATION_SCHEMA.KEY_COLUMN_USAGE b
+    where
+      a.TABLE_NAME = tab AND b.TABLE_NAME = tab
+      AND a.COLUMN_NAME = col1 AND b.COLUMN_NAME = col2
+      AND a.CONSTRAINT_NAME = b.CONSTRAINT_NAME
+      AND a.ORDINAL_POSITION = 1 AND b.ORDINAL_POSITION = 2
+      AND a.TABLE_SCHEMA = SCHEMA()
+      AND b.TABLE_SCHEMA = SCHEMA()
+      AND a.REFERENCED_TABLE_NAME IS NULL
+      AND b.REFERENCED_TABLE_NAME IS NULL;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+
+read_loop: LOOP
+    FETCH cur INTO idx_name;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    IF idx_name IS NOT NULL THEN
+      SET \@sql = CONCAT('DROP INDEX ', idx_name, ' ON ', tab);
+      PREPARE stmt FROM \@sql;
+      EXECUTE stmt;
+      DEALLOCATE PREPARE stmt;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+delimiter ;
+EOF
+
         push @statements, <<EOF;
 CREATE TABLE `location_type` (
     `description` varchar(255) NULL,
@@ -403,6 +477,7 @@ CREATE TABLE `location` (
     `located_in` bigint,
     `location_type` bigint NOT NULL,
     `name` varchar(64) NOT NULL,
+    `contactlist` bigint(20) DEFAULT NULL,
     PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
 EOF
@@ -414,6 +489,10 @@ EOF
     push @statements, <<EOF;
 ALTER TABLE location ADD CONSTRAINT `fk_location_location_type`
 	FOREIGN KEY (`location_type`) REFERENCES `location_type` (`id`);
+EOF
+    push @statements, <<EOF;
+ALTER TABLE location ADD CONSTRAINT `fk_location_contactlist`
+	FOREIGN KEY (`contactlist`) REFERENCES `contactlist` (`id`);
 EOF
 
     push @statements, <<EOF;
@@ -589,10 +668,9 @@ DROP PROCEDURE IF EXISTS migrate_devices;
 EOF
 
     push @statements, "ALTER TABLE device DROP COLUMN rack;"; # XXX
-    push @statements, "ALTER TABLE device DROP foreign key fk_room_1_device;";
-    push @statements, "ALTER TABLE device DROP foreign key fk_room_device;";
+    push @statements, "CALL drop_fk('device', 'room');";
     push @statements, "ALTER TABLE device DROP COLUMN room;";
-    push @statements, "ALTER TABLE device DROP foreign key fk_site_device;";
+    push @statements, "CALL drop_fk('device', 'site');";
     push @statements, "ALTER TABLE device DROP COLUMN site;";
 
     push @statements, migrate_to_location(table => "rack-row", skip_table => 1, fields => []);
@@ -620,18 +698,167 @@ EOF
 	    { name => "position", type => "int", descr => "Position in the Rack", is_new => 1, },
     ]);
 
+    migrate_pointer(
+    	table     => "backbonecable",
+	old_field => "start_closet",
+	ftable    => "closet",
+	new_field => "start_location");
+    migrate_pointer(
+    	table     => "backbonecable",
+	old_field => "end_closet",
+	ftable    => "closet",
+	new_field => "end_location");
+    push @statements, "CREATE INDEX entitysite_entity_42 ON entitysite(entity);";
+    push @statements, "CALL drop_2k('entitysite', 'entity', 'site');";
+    migrate_pointer(
+    	table     => "entitysite",
+	old_field => "site",
+	ftable    => "site",
+	new_field => "location");
+    push @statements, "CREATE INDEX entitysite_entity_location_42 ON entitysite(entity,location);";
+    push @statements, "DROP INDEX entitysite_entity_42 ON entitysite;";
+    push @statements, "RENAME TABLE entitysite TO entitylocation;";
+    migrate_pointer(
+    	table     => "sitesubnet",
+	old_field => "site",
+	ftable    => "site",
+	new_field => "location");
+    push @statements, "RENAME TABLE sitesubnet TO locationsubnet;";
+    migrate_pointer(
+    	table     => "sitelink",
+	old_field => "nearend",
+	ftable    => "site",
+	new_field => "nearend1");
+    push @statements, "ALTER TABLE sitelink CHANGE nearend1 nearend BIGINT;";
+    migrate_pointer(
+    	table     => "sitelink",
+	old_field => "farend",
+	ftable    => "site",
+	new_field => "farend1");
+    push @statements, "ALTER TABLE sitelink CHANGE farend1 farend BIGINT;";
+
+    push @statements, <<EOF;
+CREATE TABLE `locationpicture` (
+	`bindata` longblob NOT NULL,
+        `filename` varchar(64) NOT NULL,
+	`filesize` varchar(64) NOT NULL,
+	`filetype` varchar(64) NOT NULL,
+	`id` bigint(20) NOT NULL AUTO_INCREMENT,
+	`info` text,
+	`location` bigint(20) NOT NULL,
+	PRIMARY KEY (`id`),
+	UNIQUE KEY `locationpicture1` (`filename`,`location`),
+	KEY `fk_location_1` (`location`),
+	CONSTRAINT `fk_location_1` FOREIGN KEY (`location`) REFERENCES `location` (`id`)
+) ENGINE=InnoDB;
+EOF
+    
+    copy_location_picture(floorpicture  => "floor");
+    copy_location_picture(closetpicture => "closet");
+    copy_location_picture(sitepicture   => "site");
+
     # cleanup
     push @statements,
 	"DROP TABLE temp_closet_to_location;",
 	"DROP TABLE temp_room_to_location;",
 	"DROP TABLE temp_floor_to_location;",
-	"DROP TABLE temp_site_to_location;";
+	"DROP TABLE temp_site_to_location;",
+	"DROP PROCEDURE IF EXISTS drop_fk;",
+	"DROP PROCEDURE IF EXISTS drop_2k;";
 	
     } else {
         die "implement me!\n";
     }
 
     push @statements, "UPDATE schemainfo SET version='1.0.8' WHERE id=1;";
+}
+
+sub migrate_pointer
+{
+    my %p = @_;
+    push @statements, "ALTER TABLE $p{table} ADD COLUMN $p{new_field} bigint;";
+    my $proc_name = "migrate_pointer_$p{table}";
+    push @statements, <<EOF;
+DROP PROCEDURE IF EXISTS $proc_name;
+delimiter //
+CREATE PROCEDURE $proc_name()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE v_id bigint;
+  DECLARE v_oldf bigint;
+  DECLARE v_newf bigint;
+  DECLARE cur CURSOR FOR SELECT id,$p{old_field} FROM $p{table};
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+
+read_loop: LOOP
+    FETCH cur INTO v_id,v_oldf;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    IF v_oldf IS NOT NULL THEN
+      SELECT location_id INTO v_newf FROM temp_$p{ftable}_to_location WHERE $p{ftable}_id = v_oldf;
+    END IF;
+    IF v_newf IS NOT NULL THEN
+      UPDATE $p{table} SET $p{new_field} = v_newf WHERE id = v_id;
+    END IF;
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+delimiter ;
+CALL $proc_name();
+DROP PROCEDURE IF EXISTS $proc_name;
+EOF
+    push @statements, "CALL drop_fk('$p{table}', '$p{old_field}');";
+    push @statements, "ALTER TABLE $p{table} DROP COLUMN $p{old_field};";
+    push @statements, "ALTER TABLE $p{table} ADD CONSTRAINT `fk_$p{table}_$p{new_field}` " .
+	"FOREIGN KEY (`$p{new_field}`) REFERENCES `location` (`id`);";
+}
+
+sub copy_location_picture
+{
+    my ($picture_table, $ref_table) = @_;
+    my $temp = "temp_${ref_table}_to_location";
+    my $oldf = $ref_table;
+    # ${ref_table}_id
+    my $proc_name = "copy_${ref_table}_picture";
+    push @statements, <<EOF;
+DROP PROCEDURE IF EXISTS $proc_name;
+delimiter //
+CREATE PROCEDURE $proc_name()
+BEGIN
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE v_bindata longblob;
+  DECLARE v_ref bigint;
+  DECLARE v_filename varchar(64);
+  DECLARE v_filesize varchar(64);
+  DECLARE v_filetype varchar(64);
+  DECLARE v_info text;
+  DECLARE v_loc bigint;
+  DECLARE cur CURSOR FOR SELECT bindata,$oldf,filename,filesize,filetype,info FROM $picture_table;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur;
+
+read_loop: LOOP
+    FETCH cur INTO v_bindata,v_ref,v_filename,v_filesize,v_filetype,v_info;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT location_id INTO v_loc FROM $temp WHERE ${ref_table}_id = v_ref;
+    INSERT INTO locationpicture (bindata,location,filename,filesize,filetype,info)
+      VALUES (v_bindata,v_loc,v_filename,v_filesize,v_filetype,v_info);
+  END LOOP;
+  CLOSE cur;
+  COMMIT;
+END//
+delimiter ;
+CALL $proc_name();
+DROP PROCEDURE IF EXISTS $proc_name;
+DROP TABLE $picture_table;
+EOF
 }
 
 sub migrate_to_location
