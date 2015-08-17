@@ -6004,15 +6004,15 @@ $meta = {
       },
       location => {
         default => '',
-        description => 'Site where this Person is located.  The Site is used instead of an Address',
+        description => 'Location where this Person is.  The Location is used instead of an Address',
         length => '',
         linksto => {
           cascade => 'Delete',
           method => 'people',
-          table => 'Site'
+          table => 'Location'
         },
         nullable => 1,
-        tag => 'Site',
+        tag => 'Location',
         type => 'bigint'
       },
       office => {
@@ -6046,19 +6046,6 @@ $meta = {
         nullable => 1,
         tag => 'Position',
         type => 'varchar'
-      },
-      room => {
-        default => '',
-        description => 'Room where person is located, if available',
-        length => '',
-        linksto => {
-          cascade => 'Nullify',
-          method => 'people',
-          table => 'Room'
-        },
-        nullable => 1,
-        tag => 'Room',
-        type => 'bigint'
       },
       user_type => {
         default => '',
