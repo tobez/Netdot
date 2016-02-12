@@ -80,7 +80,19 @@ print $fh "inserted: ", Dumper($result), "\n";
 close $fh;
     }
     $rest->print_serialized($result);
-
+} elsif ( $method eq 'DELETE' ){
+    my $pi = $r->path_info;
+open my $fh, ">>", "/tmp/netdot.debug";
+print $fh "trying to delete: $pi\n";
+close $fh;
+    if ($pi =~ /^\/(\d+)$/) {
+	my $loc = Netdot::Model::Location->retrieve($1);
+	my $parent = $loc->located_in;
+	$loc->delete;
+	$rest->print_serialized($parent ? $parent->as_hash : {});
+    } else {
+	$rest->print_serialized({});
+    }
 }
 
 </%perl>
