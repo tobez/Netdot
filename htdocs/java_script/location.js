@@ -513,9 +513,9 @@ Location.prototype.view_rack_table = function (loc, o) {
 		    var general_ok = 1;
 		    var fib_possibilities;
 		    if (select_hsize == 1) {
-			fib_possibilities = [[FIB_FRONT], [FIB_BACK]];
+			fib_possibilities = [[fib]];
 		    } else if (select_hsize == 2) {
-			fib_possibilities = [[FIB_FRONT,FIB_INTERIOR], [FIB_BACK,FIB_INTERIOR]];
+			fib_possibilities = [[fib,FIB_INTERIOR]];
 		    } else {
 			fib_possibilities = [[FIB_FRONT, FIB_BACK, FIB_INTERIOR]];
 			if (fib == FIB_BACK) general_ok = 0;
@@ -545,6 +545,7 @@ Location.prototype.view_rack_table = function (loc, o) {
 				    }
 				}
 			    }
+console.log("i = %d, n = %d, fib = %O, g = %d, possible_fibs = %O, fib_test = %d, OK = %d\n", i, n, fib, g, possible_fibs, fib_test, ok);
 			}
 		    }
 		    if (general_ok && ok) {
