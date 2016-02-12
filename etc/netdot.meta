@@ -999,7 +999,7 @@ $meta = {
         description => 'Location where this cable terminates',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'backbones_end',
           table => 'Location'
         },
@@ -1065,7 +1065,7 @@ $meta = {
         description => 'Location where this cable originates',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'backbones_start',
           table => 'Location'
         },
@@ -1808,7 +1808,7 @@ $meta = {
         description => 'The remote Location for this Link',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'farlinks',
           table => 'Location'
         },
@@ -1845,7 +1845,7 @@ $meta = {
         description => 'The local Location for this Link',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'nearlinks',
           table => 'Location'
         },
@@ -6007,7 +6007,7 @@ $meta = {
         description => 'Location where this Person is.  The Location is used instead of an Address',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Nullify',
           method => 'people',
           table => 'Location'
         },
