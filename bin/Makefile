@@ -34,12 +34,10 @@ _defragdb:
 
 oui:
 	rm -f oui.txt
-	if [ "$(NETDOT_DEVELOPER)x" = x ]; then \
-		echo "wget -t 1 http://standards.ieee.org/regauth/oui/oui.txt || cp oui.txt.default oui.txt"; \
-		cp oui.txt.default oui.txt; \
-		echo "Not a developer"; \
+	if [ "$${NETDOT_DEVELOPER}x" = x ]; then \
+		wget -t 1 http://standards.ieee.org/regauth/oui/oui.txt || cp oui.txt.default oui.txt; \
 	else \
+		echo "Just copying default oui.txt in the developer mode"; \
 		cp oui.txt.default oui.txt; \
-		echo "A developer"; \
 	fi
 	$(PERL) initdb oui
