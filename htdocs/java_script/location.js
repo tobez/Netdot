@@ -510,45 +510,39 @@ Location.prototype.view_rack_table = function (loc, o) {
 		var $col = $("<td class='rackpos'>&nbsp;</td>");
 
 		if (!opt.disable_rack_select && select_id && select_vsize && select_hsize && fib != FIB_INTERIOR) {
-		    var general_ok = 1;
-		    var fib_possibilities;
-		    if (select_hsize == 1) {
-			fib_possibilities = [[fib]];
-		    } else if (select_hsize == 2) {
-			fib_possibilities = [[fib,FIB_INTERIOR]];
-		    } else {
-			fib_possibilities = [[FIB_FRONT, FIB_BACK, FIB_INTERIOR]];
-			if (fib == FIB_BACK) general_ok = 0;
-		    }
 		    var ok = 1;
-		    for (var f = 0; f < fib_possibilities.length; f++) {
-			ok = 1;
-			var possible_fibs = fib_possibilities[f];
-			for (var g = 0; g < possible_fibs.length; g++) {
-			    var fib_test = possible_fibs[g];
-			    if (L.rack_downwards) {
-				for (var k = 0; k < select_vsize; k++) {
-				    if (n-k <= 0) {
+		    var possible_fibs;
+		    if (select_hsize == 1) {
+			possible_fibs = [fib];
+		    } else if (select_hsize == 2) {
+			possible_fibs = [fib,FIB_INTERIOR];
+		    } else {
+			possible_fibs = [FIB_FRONT, FIB_BACK, FIB_INTERIOR];
+			if (fib == FIB_BACK) ok = 0;
+		    }
+		    for (var g = 0; g < possible_fibs.length; g++) {
+			var fib_test = possible_fibs[g];
+			if (L.rack_downwards) {
+			    for (var k = 0; k < select_vsize; k++) {
+				if (n-k <= 0) {
+				    ok = 0;
+				} else if (occupied[n-k] && occupied[n-k][fib_test]) {
+				    if (!occupied[n-k][fib_test].highlight)
 					ok = 0;
-				    } else if (occupied[n-k] && occupied[n-k][fib_test]) {
-					if (!occupied[n-k][fib_test].highlight)
-					    ok = 0;
-				    }
-				}
-			    } else {
-				for (var k = 0; k < select_vsize; k++) {
-				    if (n+k > L.rack_size) {
-					ok = 0;
-				    } else if (occupied[n+k] && occupied[n+k][fib_test]) {
-					if (!occupied[n+k][fib_test].highlight)
-					    ok = 0;
-				    }
 				}
 			    }
-console.log("i = %d, n = %d, fib = %O, g = %d, possible_fibs = %O, fib_test = %d, OK = %d\n", i, n, fib, g, possible_fibs, fib_test, ok);
+			} else {
+			    for (var k = 0; k < select_vsize; k++) {
+				if (n+k > L.rack_size) {
+				    ok = 0;
+				} else if (occupied[n+k] && occupied[n+k][fib_test]) {
+				    if (!occupied[n+k][fib_test].highlight)
+					ok = 0;
+				}
+			    }
 			}
 		    }
-		    if (general_ok && ok) {
+		    if (ok) {
 			var pid;
 			if (fib == FIB_FRONT)
 			    pid = loc.front_positions[n];
