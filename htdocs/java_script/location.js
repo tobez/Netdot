@@ -292,8 +292,8 @@ Location.prototype.view = function ($div, opts) {
 	    $container.append("<br/>");
 	    $container.append("<span>Select a new position in the rack and press submit</span>");
 	    $container.append("<br/>");
-	    $container.append("<input class='submit btn' type='submit' value='Submit'/>");
-	    $container.find(".submit").click(function () {
+	    $container.append("<input class='submit btn in-rack' type='submit' value='Submit'/>");
+	    $container.find(".submit.in-rack").click(function () {
 		var pid = $('input[name=rackpos]:checked', $container).val();
 		if (!pid) return false;
 		var $sel = $("#" + select_id, window.opener.document);
@@ -315,8 +315,8 @@ Location.prototype.view = function ($div, opts) {
 	    } else {
 		button_text = 'Assign this location to the asset';
 	    }
-	    $container.append("<input class='submit btn' type='submit' value='" + button_text + "'/>");
-	    $container.find(".submit").click(function () {
+	    $container.append("<input class='submit btn self-rack' type='submit' value='" + button_text + "'/>");
+	    $container.find(".submit.self-rack").click(function () {
 		var $sel = $("#" + select_id, window.opener.document);
 		$sel.val(this.loc.id);
 		if (visible_id) {
