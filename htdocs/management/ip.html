@@ -1031,7 +1031,7 @@ if ( $edit ){
 %# Navigation Bar
 %#######################################################################
 
-% if ( $manager && $manager->can($user, "access_section", 'ip.html:sites') ){
+% if ( $manager && $manager->can($user, "access_section", 'ip.html:locations') ){
     <div id="navbar">
         <ul id="navigation">
 %         if( $view eq "Children" ) {
@@ -1039,10 +1039,10 @@ if ( $edit ){
 %         } else {
               <li><a href="ip.html?id=<% $id %>&view=Children">Children</a></li>
 %         }
-%         if( $view eq "Sites" ) {
-              <li><span>Sites</span></li>
+%         if( $view eq "Locations" ) {
+              <li><span>Locations</span></li>
 %         } else {
-              <li><a href="ip.html?id=<% $id %>&view=Sites">Sites</a></li>
+              <li><a href="ip.html?id=<% $id %>&view=Locations">Locations</a></li>
 %         }
 %         if( $view eq "Zones" ) {
               <li><span>Zones</span></li>
@@ -1540,28 +1540,28 @@ print $tmp{value};
     </div>
 % }
 
-% if ( $view eq 'Sites' || $view eq 'All'){
+% if ( $view eq 'Locations' || $view eq 'All'){
 
 %################################################################
-%# Sites
+%# Locations
 %################################################################
-% if ( $manager && $manager->can($user, "access_section", 'ip.html:sites') ){
-% my @ss = $o->sites;
+% if ( $manager && $manager->can($user, "access_section", 'ip.html:locations') ){
+% my @ss = $o->locations;
   <div class="container">
-    <div class="containerheadleft">Sites</div>
+    <div class="containerheadleft">Locations</div>
        <div class="containerheadright">
        &nbsp;
-%      if ( $edit ne 'edit_sites' ){
+%      if ( $edit ne 'edit_locations' ){
 %          if ( $manager && $manager->can($user, 'edit', $o) ){
 %              if ( @ss ){
-                   <a href="ip.html?id=<% $o %>&view=Sites&edit=edit_sites">[edit]</a>
+                   <a href="ip.html?id=<% $o %>&view=Locations&edit=edit_locations">[edit]</a>
 %              }
-               <a href="edit.html?table=SiteSubnet&subnet=<% $o %>">[add]</a>
+               <a href="edit.html?table=LocationSubnet&subnet=<% $o %>">[add]</a>
 %          }
 %      }
        </div>
     <div class="containerbody">
-       <& /generic/sortresults.mhtml, object=>\@ss, return_args=>"?id=$id&view=$view", withedit=>($edit eq 'edit_sites')? 1 : 0  &>
+       <& /generic/sortresults.mhtml, object=>\@ss, return_args=>"?id=$id&view=$view", withedit=>($edit eq 'edit_locations')? 1 : 0  &>
     </div>
   </div>
 

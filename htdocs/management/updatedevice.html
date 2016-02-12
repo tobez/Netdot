@@ -29,7 +29,7 @@ $sid             => undef
 $insert          => undef
 $owner           => undef
 $used_by         => undef
-$site            => undef
+$location        => undef
 $contacts        => undef
 $add_subnets     => 1
 $subs_inherit    => 1
@@ -56,7 +56,7 @@ my $fqdn;
 my %argv;
 my $session;
 my $guessed_user_ent;
-my $guessed_site;
+my $guessed_location;
 my $guessed_cl;
 my $info;
 my $default_owner;
@@ -160,8 +160,8 @@ if ( $action eq "discover" ){
 			      $guessed_user_ent = $user_ent;
 			      if ( my $cl = $user_ent->contactlist ){
 				  $guessed_cl = $cl->id;
-			      }if ( my @entsites = $user_ent->sites ){
-				  $guessed_site = $entsites[0]->site;
+			      }if ( my @entlocations = $user_ent->locations ){
+				  $guessed_location = $entlocations[0]->locations;
 			      }
 			      last LOOP;  #just grab the first one
 			  }
@@ -175,11 +175,11 @@ if ( $action eq "discover" ){
 	    $default_owner   = Entity->search(name=>$config_owner)->first;
 	    
 	    # If we could not determine it before, 
-	    # try to guess site based on SNMP location
-	    if ( ! $guessed_site ){
+	    # try to guess location based on SNMP location
+	    if ( ! $guessed_location ){
 		if ( my $loc = $info->{syslocation} ){
-		    if ( my $site = Site->search_like(name=>"%$loc%")->first ){
-			$guessed_site = $site;
+		    if ( my $location = Location->search_like(name=>"%$loc%")->first ){
+			$guessed_location = $location;
 		    }
 		}
 	    }
@@ -252,7 +252,7 @@ if ( $action eq "discover" ){
 	$argv{used_by}      = $used_by;
 	$argv{add_subnets}  = $add_subnets;
 	$argv{subs_inherit} = $subs_inherit;
-	$argv{site}         = $site;
+	$argv{location}     = $location;
 	eval {
 	    $o = Device->discover(%argv);
 	};
@@ -334,21 +334,21 @@ else{
 </&>
 % push( @cell_data, $_ );
 
-% push( @field_headers, "Site:" );
+% push( @field_headers, "Location:" );
 <&| "/generic/HERE.mhtml" &>
-           <select name="site" id="site">
+           <select name="location" id="location">
            <option value="">-- Select --</option>
-%          my @allsites = Site->retrieve_all; 
-%          @allsites = sort { $a->name cmp $b->name } @allsites;
-%          foreach my $site (@allsites){
-%                if ( $guessed_site && ($site->id == $guessed_site->id) ){
-                   <option value="<% $site->id %>" SELECTED><% $site->name %></option>
+%          my @alllocations = Location->retrieve_all; 
+%          @alllocations = sort { $a->name cmp $b->name } @alllocations;
+%          foreach my $location (@alllocations){
+%                if ( $guessed_location && ($location->id == $guessed_location->id) ){
+                   <option value="<% $location->id %>" SELECTED><% $location->name %></option>
 %                }else{
-                   <option value="<% $site->id %>"><% $site->name %></option>
+                   <option value="<% $location->id %>"><% $location->name %></option>
 %                }
 %          }
            </select>
-           <a href="#" onClick="openinsertwindow('table=Site&select_id=site&selected=1&dowindow=1')">[new]</a>
+           <a href="#" onClick="openinsertwindow('table=Location&select_id=location&selected=1&dowindow=1')">[new]</a>
 </&>
 % push( @cell_data, $_ );
 

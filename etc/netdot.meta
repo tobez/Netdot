@@ -3869,7 +3869,7 @@ $meta = {
         length => '',
         linksto => {
           cascade => 'Delete',
-          method => 'sites',
+          method => 'locations',
           table => 'Entity'
         },
         nullable => 0,
@@ -7661,7 +7661,7 @@ $meta = {
         length => '',
         linksto => {
           cascade => 'Delete',
-          method => 'sites',
+          method => 'locations',
           table => 'Ipblock'
         },
         nullable => 0,
