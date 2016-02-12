@@ -452,6 +452,43 @@ sub get_label
 
 ##################################################################
 
+=head2 delete - Delete Location object
+
+    We override delete to handle reparenting of children properly
+
+  Arguments:
+    none
+   Returns:
+    True if successful
+  Examples:
+    $loc->delete();
+
+=cut
+
+sub delete {
+    my $self = shift;
+    $self->isa_object_method('delete');
+    my $class = ref($self);
+
+    my @c = $self->contains;
+    for my $c (@c) {
+	if ($c->location_type->magic & MAGIC_HIDDEN) {
+	    # hidden children are to be deleted
+	    $c->delete;
+	} else {
+	    # other children are to be reparented
+	    $c->located_in($self->located_in);
+	    $c->update;
+	}
+    }
+
+    $self->SUPER::delete();
+    return 1;
+}
+
+
+##################################################################
+
 =head2 hash_update - handle location update 
 
   Takes a hashref similar in structure to that returned by
