@@ -23,6 +23,16 @@ var remote_post = function(obj, func)
     }, "json");
 };
 
+var remote_delete = function(obj, func)
+{
+    jQuery.ajax({
+	url: "/netdot/rest/location/" + obj.id,
+	type: "DELETE",
+	dataType: "json",
+	success: function(r) { func(r); }
+    });
+};
+
 var updateURLParameter = function(url, param, paramVal) {
     var newAdditionalURL = "";
     var tempArray = url.split("?");
@@ -143,6 +153,28 @@ Location.prototype.list = function ($div) {
     }.bind(this));
 };
 
+Location.prototype.remove = function ($div) {
+    var $rem  = $div.find(".location_remove");
+    $rem.empty();
+    $rem.append("<br/>");
+    $rem.append("<span><b>Are you sure you want to delete this location?</b></span>");
+    $rem.append("<br/>");
+    $rem.append("<input class='submit btn' type='submit' value='Confirm'/>");
+    $rem.find(".submit").click(function () {
+	remote_delete(this.loc, function (r) {
+	    locs[r.id] = this.loc = r;
+	    this.view($div);
+	}.bind(this));
+	return false;
+    }.bind(this));
+    $rem.append(" ");
+    $rem.append("<input class='cancel btn' type='button' value='Cancel'/>");
+    $rem.find(".cancel").click(function () {
+	$rem.empty();
+	return false;
+    }.bind(this));
+};
+
 Location.prototype.view = function ($div, opts) {
     this.opts = opts;
     var $title     = $div.find(".containerheadleft");
@@ -156,6 +188,13 @@ Location.prototype.view = function ($div, opts) {
 	$menu.append("<a class='edit' href='#'>[edit]</a>");
 	$menu.find("a.edit").click(function () {
 	    this.edit($div);
+	    return false;
+	}.bind(this));
+	$menu.append("&nbsp;");
+
+	$menu.append("<a class='delete' href='#'>[delete]</a>");
+	$menu.find("a.delete").click(function () {
+	    this.remove($div);
 	    return false;
 	}.bind(this));
 	$menu.append("&nbsp;");
@@ -208,6 +247,7 @@ Location.prototype.view = function ($div, opts) {
     }
 
     $container.append($tab);
+    $container.append("<div class='location_remove'></div>");
 
     var $assets_list;
     if (this.loc.assets.length) {
@@ -215,6 +255,7 @@ Location.prototype.view = function ($div, opts) {
 	var $head = $("<div class='location_row header'></div>");
 	$head.append("<span class='location_col type'><b>Assets at this location</b></span>");
 	$list.append($head);
+	var appended = false;
 	for (var i = 0; i < this.loc.assets.length; i++) {
 	    var as = this.loc.assets[i];
 	    if (as.location_id != this.loc.id)
@@ -235,9 +276,11 @@ Location.prototype.view = function ($div, opts) {
 		$col.append($a);
 		$row.append($col);
 		$list.append($row);
+		appended = true;
 	    }());
 	}
-	$assets_list = $list;
+	if (appended)
+	    $assets_list = $list;
     }
 
     if (this.is_rack) {
