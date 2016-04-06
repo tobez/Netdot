@@ -48,14 +48,11 @@ if ($show_tasks eq "") {
 }
 *print_showtaskslink = $m->comp('SELF:.sub_print_showtaskslink'); 
 
-#my @sites = Site->retrieve_all();
-#@sites = sort { $a->name cmp $b->name } @sites;
-my @sites = (); # XXX
+my @sites = Site->retrieve_all();
+@sites = sort { $a->name cmp $b->name } @sites;
 
-#my @bbsites      = Site->search_with_backbones();
-#my @closet_sites = Site->search_with_closets();
-my @bbsites = (); # XXX
-my @closet_sites = (); # XXX
+my @bbsites      = Site->search_with_backbones();
+my @closet_sites = Site->search_with_closets();
 
 my $hideheader;
 if( !$showheader ) {
@@ -74,7 +71,8 @@ if( !$showheader ) {
 	    title        => 'Cable Plant',
 	    attribute    => 'CABLE_PLANT_PAGE',
 	    sub_sections => [
-		{ section => 'LOCATIONS',  title => 'Locations' },
+		{ section => 'SITES',      title => 'Sites' },
+		{ section => 'CLOSETS',    title => 'Closets' },
 		{ section => 'BACKBONE',   title => 'Backbone Cables' },
 		{ section => 'HORIZONTAL', title => 'Horizontal Cables' },
 		{ section => 'CIRCUITS',   title => 'Circuits' }
@@ -248,10 +246,6 @@ if( !$showheader ) {
     </div> <!-- end containerbody -->
 </div> <!-- end container -->
 </div> <!-- close sectiontools -->
-
-% } elsif ($page eq "LOCATIONS") {
-
-% $m->comp('../location/autohandler', %ARGS);
 
 % } elsif ($page eq "SITES" && $m->request_comp->name ne "site_tasks.html") {
 
