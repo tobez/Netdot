@@ -57,12 +57,6 @@ my @sites = (); # XXX
 my @bbsites = (); # XXX
 my @closet_sites = (); # XXX
 
-my @sites = Site->retrieve_all();
-@sites = sort { $a->name cmp $b->name } @sites;
-
-my @bbsites      = Site->search_with_backbones();
-my @closet_sites = Site->search_with_closets();
-
 my $hideheader;
 if( !$showheader ) {
     $hideheader = 'style="display:none"';
