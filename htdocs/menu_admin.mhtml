@@ -39,7 +39,7 @@ my $manager = $ui->get_permission_manager($r);
 
 my $section_meta_data = [ 
     map { $m->comp("/$_/autohandler:.section_meta_data") }
-        ("management", "contacts", "location", "generic", "reports")
+        ("management", "contacts", "cable_plant", "generic", "reports")
 ];
 
 # Only Admins can export stuff
