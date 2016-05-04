@@ -130,14 +130,6 @@ if( !$showheader ) {
                <input type="submit" name="submit_backbone_search" value="Search">
                </p>
            </form>
-           <form name="site_srch" action="cable_plant.html" method="POST">
-               <p>
-               <input type="hidden" name="page_type" value="BACKBONE">  
-               <label for="search">Site Name: </label>
-               <input name="site_srch" size="20">
-               <input type="submit" name="submit_site_search" value="Search">
-               </p>
-           </form>
         </fieldset>
         <fieldset class="large">
             <legend>Graph</legend>

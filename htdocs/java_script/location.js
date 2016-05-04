@@ -311,9 +311,9 @@ Location.prototype.view = function ($div, opts) {
 	if (select_id) {
 	    var button_text;
 	    if (select_vsize && select_hsize) {
-		button_text = '... or just assign the asset to the rack';
+		button_text = '... or just choose the rack itself';
 	    } else {
-		button_text = 'Assign this location to the asset';
+		button_text = 'Choose this location to assign';
 	    }
 	    $container.append("<input class='submit btn self-rack' type='submit' value='" + button_text + "'/>");
 	    $container.find(".submit.self-rack").click(function () {
@@ -346,7 +346,7 @@ Location.prototype.view = function ($div, opts) {
     } else {
 	if (select_id && !this.is_root) {
 	    $container.append("<br/>");
-	    $container.append("<input class='submit btn' type='submit' value='Assign this location to the asset'/>");
+	    $container.append("<input class='submit btn' type='submit' value='Use this location'/>");
 	    $container.find(".submit").click(function () {
 		var $sel = $("#" + select_id, window.opener.document);
 		$sel.val(this.loc.id);

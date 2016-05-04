@@ -667,23 +667,23 @@ sub select_lookup{
 	# handle specialcases first
 	if (lc $args{lookup} eq "location") {
 		$args{new_button} = 0;
-		if ($o && $o->parent) {
+		if ($o && $o->can("parent") && $o->parent) {
 			$output .= "(assets with parent cannot have a location)";
 		} else {
-			#use Data::Dumper;
-			#open my $fh, ">>", "/tmp/netdot.debug";
-			#print $fh scalar(localtime), ": UI.pm form, location, arguments: ", Dumper(\%args), "\n";
-			#close $fh;
+			# use Data::Dumper;
+			# open my $fh, ">>", "/tmp/netdot.debug" or die "cannot open debug file: $!\n";
+			# print $fh scalar(localtime), ": UI.pm form, location, arguments: ", Dumper(\%args), "\n";
+			# close $fh;
 #         var url = "edit.html?showheader=0&"+edit_args;
 			#                 openwindow(url);
 			#
 			#  XXX want product vsize/hsize
-			my $id = $o && $o->location ? $o->location->id : "";
+			my $id = $o && $o->$column ? $o->$column->id : "";
 			my $pass_id = $id ? "&id=$id" : "";
 			my $label = $id ? $o->$column->get_label : "[select new location]";
 			my $select_vsize = "";
 			my $select_hsize = "";
-			if ($o && $o->product_id) {
+			if ($o && $o->can("product_id") && $o->product_id) {
 				$select_vsize = "&select_vsize=" . $o->product_id->vsize;
 				$select_hsize = "&select_hsize=" . $o->product_id->hsize;
 			}
@@ -779,7 +779,7 @@ sub select_lookup{
 	    $output .= sprintf('<a href="%s?id=%d"> %s </a>', 
 			       $args{linkPage}, $o->$column->id, $o->$column->get_label);
 	}
-    }elsif ($column eq "location"){
+    }elsif ($column eq "location" || $column eq "start_location" || $column eq "end_location"){
 	my $oo = $o;
 	while (!$oo->$column && $oo->parent) {
 	    $oo = $oo->parent;

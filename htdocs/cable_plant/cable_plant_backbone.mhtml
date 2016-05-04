@@ -36,8 +36,8 @@ my $manager = $ui->get_permission_manager($r);
 	    map { push (@closets, $_->closets) } @sites;
 	    foreach my $closet (@closets) {
 		my $c_id = $closet->id;
-		map { push (@cables, $_) } (BackboneCable->search(start_closet=>$c_id),
-					    BackboneCable->search(end_closet=>$c_id));
+		map { push (@cables, $_) } (BackboneCable->search(start_location=>$c_id),
+					    BackboneCable->search(end_location=>$c_id));
 	    }
 	}
 
@@ -84,7 +84,7 @@ my $manager = $ui->get_permission_manager($r);
                         <a href="cable_backbone.html?id=NEW">[new]</a> &nbsp;
 %                   }
 %                   if ( $manager && $manager->can($user, 'edit', $o) ){
-		        <a href="cable_plant.html?start_id=<% $start_id %>&end_id=<% $end_id %>&site_srch=<% $site_srch %>&backbone_srch=<% $backbone_srch %>&page_type=<% $page_type %>&edit=cableinfo">[edit]</a>
+		        <a href="cable_plant.html?start_id=<% $start_id %>&end_id=<% $end_id %>&backbone_srch=<% $backbone_srch |u %>&page_type=<% $page_type %>&edit=cableinfo">[edit]</a>
 %                   }
 %             }
             </div>
@@ -101,18 +101,14 @@ my $manager = $ui->get_permission_manager($r);
 		    @sorted_cables = sort { $a->$cable_sort cmp $b->$cable_sort } @cables;
 		} elsif ($cable_sort eq "type") {
 		    @sorted_cables = sort { $a->type->name cmp $b->type->name } @cables;
-		} elsif ($cable_sort eq "start_closet") {
-		    @sorted_cables = sort { $a->start_closet->name cmp $b->start_closet->name } @cables;
-		} elsif ($cable_sort eq "end_closet") {
-		    @sorted_cables = sort { $a->end_closet->name cmp $b->end_closet->name } @cables;
+		} elsif ($cable_sort eq "start_location") {
+		    @sorted_cables = sort { $a->start_location->name cmp $b->start_location->name } @cables;
+		} elsif ($cable_sort eq "end_location") {
+		    @sorted_cables = sort { $a->end_location->name cmp $b->end_location->name } @cables;
 		} elsif ($cable_sort eq "owner") {
 		    @sorted_cables = sort { $a->owner->name cmp $b->owner->name } @cables;
 		} elsif ($cable_sort eq "strand_count") {
 		    @sorted_cables = sort { scalar($a->strands) <=> scalar($b->strands) } @cables;
-		} elsif ($cable_sort eq "start_building") {
-		    @sorted_cables = sort { $a->start_closet->room->floor->site->name cmp $b->start_closet->room->floor->site->name } @cables;
-		} elsif ($cable_sort eq "end_building") {
-		    @sorted_cables = sort { $a->end_closet->room->floor->site->name cmp $b->end_closet->room->floor->site->name } @cables;
 		} else {
 		    $m->comp("error.mhtml", "Unknown value for cable_sort: \"$cable_sort\"");
 		}
@@ -121,31 +117,24 @@ my $manager = $ui->get_permission_manager($r);
 		<%perl>
 		(@headers, @rows) = ();
 
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=name&page_type=' . $page_type . '">Name</a>' );
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=type&page_type=' . $page_type . '">Type</a>' );
-		if ($edit ne "cableinfo") {
-		    push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-			  . '&backbone_srch=' . $backbone_srch . '&cable_sort=start_building&page_type=' . $page_type . '">Start Building</a>' );
-		}
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=start_closet&page_type=' . $page_type . '">Start Closet</a>' );
-		if ($edit ne "cableinfo") {
-		    push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-			  . '&backbone_srch=' . $backbone_srch . '&cable_sort=end_building&page_type=' . $page_type . '">End Building</a>' );
-		}        
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=end_closet&page_type=' . $page_type . '">End Closet</a>' );
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=strand_count&page_type=' . $page_type . '"># of Strands</a>');
-		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id . '&site_srch=' . $site_srch 
-		      . '&backbone_srch=' . $backbone_srch . '&cable_sort=owner&page_type=' . $page_type . '">Owner</a>' );
+		use URI::Escape;
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=name&page_type=' . $page_type . '">Name</a>' );
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=type&page_type=' . $page_type . '">Type</a>' );
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=start_location&page_type=' . $page_type . '">Start Location</a>' );
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=end_location&page_type=' . $page_type . '">End Location</a>' );
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=strand_count&page_type=' . $page_type . '"># of Strands</a>');
+		push( @headers, '<a href="cable_plant.html?start_id=' . $start_id . '&end_id=' . $end_id
+		      . '&backbone_srch=' . uri_escape($backbone_srch) . '&cable_sort=owner&page_type=' . $page_type . '">Owner</a>' );
 
 		foreach my $cable (@sorted_cables) {
 
-		    my $start_site = $cable->start_closet->room->floor->site if ($cable->start_closet->room->floor);
-		    my $end_site = $cable->end_closet->room->floor->site if ($cable->end_closet->room->floor);
+		    my $start_site = $cable->start_location;  # XXX walk up to a "site"?
+		    my $end_site   = $cable->end_location;    # XXX ^^^ ?
 		    my $start_site_id = $start_site->id if ($start_site);
 		    my $end_site_id = $end_site->id if ($end_site);
 
@@ -162,29 +151,27 @@ my $manager = $ui->get_permission_manager($r);
 			      $ac;
 			  }} );
 		    push( @row, $ui->form_field(object=>$cable, column=>"type", edit=>($edit eq "cableinfo"), returnValOnly=>1) );
-		    if ($edit ne "cableinfo") {
-			push( @row, '<a href="view.html?table=Site&id=' . $cable->start_closet->room->floor->site->id . '">' . $cable->start_closet->room->floor->site->name . '</a>' );
-		    }
 		    push( @row, 
 			  &{sub{
 			      my $ac = "";
 			      if ($edit eq "cableinfo") {
-				  $ac .= $ui->form_field(object=>$cable, column=>"start_closet", edit=>($edit eq "cableinfo"), returnValOnly=>1);
+				  $ac .= $ui->form_field(object=>$cable, column=>"start_location", edit=>($edit eq "cableinfo"), returnValOnly=>1);
 			      } else {
-				  $ac .= '<a href="closet.html?id=' . $cable->start_closet . '">' . $cable->start_closet->name . '</a>';
+				  my $linkPage = $ui->table_view_page("Location") || 'view.html';
+				  my %field = $ui->form_field(object=>$cable, column=>"start_location", edit=> 0, new_button => 0, linkPage=>$linkPage);
+				  $ac .= $field{value};
 			      }
 			      $ac;
 			  }} );
-		    if ($edit ne "cableinfo") {
-			push( @row, '<a href="view.html?table=Site&id=' . $cable->end_closet->room->floor->site->id . '">' . $cable->end_closet->room->floor->site->name . '</a>' );
-		    }
 		    push( @row, 
 			  &{sub{
 			      my $ac = "";
 			      if ($edit eq "cableinfo") {
-				  $ac .= $ui->form_field(object=>$cable, column=>"end_closet", edit=>($edit eq "cableinfo"), returnValOnly=>1);
+				  $ac .= $ui->form_field(object=>$cable, column=>"end_location", edit=>($edit eq "cableinfo"), returnValOnly=>1);
 			      } else {
-				  $ac .= '<a href="closet.html?id=' . $cable->end_closet . '">' . $cable->end_closet->name . '</a>';
+				  my $linkPage = $ui->table_view_page("Location") || 'view.html';
+				  my %field = $ui->form_field(object=>$cable, column=>"end_location", edit=> 0, new_button => 0, linkPage=>$linkPage);
+				  $ac .= $field{value};
 			      }
 			      $ac;
 			  }} );

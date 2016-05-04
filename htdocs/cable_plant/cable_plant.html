@@ -99,7 +99,6 @@ if(defined($ARGS{_action})) {
 	  <input type="hidden" name="backbone_srch" value="<% $backbone_srch %>">
 	  <input type="hidden" name="backbone_id_srch" value="<% $backbone_id_srch %>">
 	  <input type="hidden" name="circuit_srch" value="<% $ARGS{circuit_srch} %>">
-	  <input type="hidden" name="site_srch" value="<% $site_srch %>">
 	  <input type="hidden" name="page_type" value="<% $page_type %>">
 	  <input type="hidden" name="_action" value="<% $id ? "UPDATE" : "NEW" %>">
 %     }
@@ -115,7 +114,7 @@ if(defined($ARGS{_action})) {
         <& cable_plant_backbone.mhtml, o => $o, MAX_SELECTION => $MAX_SELECTION, start_id => $start_id,
                end_id => $end_id, page_type => $page_type, submit_site => $submit_site,
                backbone_srch => $backbone_srch, backbone_id_srch => $backbone_id_srch,
-               edit => $edit, site_srch => $site_srch, cable_sort => $cable_sort &>
+               edit => $edit, cable_sort => $cable_sort &>
 
 %     } elsif (uc($page_type) eq "CLOSETS") {
 %       $m->abort() if (!defined($o) && !exists($ARGS{closet_srch}));

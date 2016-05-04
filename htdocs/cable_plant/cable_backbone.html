@@ -37,13 +37,9 @@ my ($start_site_id, $end_site_id) = (0, 0);
 
 if ( $id && $id ne "NEW" ) {
     $o = BackboneCable->retrieve($id);
-    
-    if ( $o->start_closet->room->floor && $o->start_closet->room->floor->site ){
-	$start_site = $o->start_closet->room->floor->site;
-    }
-    if ( $o->end_closet->room->floor && $o->end_closet->room->floor->site ){
-	$end_site = $o->end_closet->room->floor->site;
-    }
+
+    $start_site = $o->start_location;  # XXX walk up to a "site" ?
+    $end_site   = $o->end_location;    # XXX
     
     $start_site_id = $start_site->id if ($start_site);
     $end_site_id = $end_site->id if ($end_site);
@@ -296,7 +292,7 @@ function suggestName()
 	      <td width="50%">
 <%perl>
     (@field_headers, @cell_data) = ();
-    my @fields = ('start_closet','end_closet','type');
+    my @fields = ('start_location','end_location','type');
     my %args = (o=>$o, table=>"BackboneCable", edit=>$editBackbone, fields=>\@fields, 
 		       field_headers=>\@field_headers, cell_data=>\@cell_data);
     if ( my $sc = Closet->retrieve($start_closet) ){
