@@ -3482,6 +3482,11 @@ $meta = {
         'physaddr',
         'text'
       ],
+      template => [
+        'name',
+        'type',
+        'active'
+      ],
       pool => [
         'name',
         'type',
