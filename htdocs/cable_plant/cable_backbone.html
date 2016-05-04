@@ -80,13 +80,9 @@ if (defined($_action) && ($_action eq "UPDATE" || $_action eq "STRAND_UPDATE")) 
     $o = undef;
     if ($id && $id ne "NEW") {
         $o = BackboneCable->retrieve($id);
-	if ( $o->start_closet->room->floor && $o->start_closet->room->floor->site ){
-	    $start_site = $o->start_closet->room->floor->site;
-	}
+	    $start_site = $o->start_location;  # XXX walk up to a site?
+	    $end_site = $o->end_location;      # XXX ^^^
 
-	if ( $o->end_closet->room->floor && $o->end_closet->room->floor->site ){
-	    $end_site = $o->end_closet->room->floor->site;
-	}
         $start_site_id = $start_site->id if ($start_site);
         $end_site_id = $end_site->id if ($end_site);
         
@@ -225,8 +221,8 @@ if (defined($_action) && $_action eq "STRAND_UPDATE") {
 */
 function suggestName()
 {
-    var start = document.netdotform.BackboneCable__<% $id %>__start_closet.value;
-    var end = document.netdotform.BackboneCable__<% $id %>__end_closet.value;
+    var start = document.netdotform.BackboneCable__<% $id %>__start_location.value;
+    var end = document.netdotform.BackboneCable__<% $id %>__end_location.value;
 
     if (!start || !end)
     {

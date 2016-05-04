@@ -15,28 +15,10 @@ $name
 <script language="JavaScript">
 <!--
 <%perl>
-my ($start_closet, $end_closet, $start_site, $end_site);
+my $start_loc = Location->retrieve($start);
+my $end_loc = Location->retrieve($end);
 
-$start_closet = Closet->retrieve($start);
-$end_closet = Closet->retrieve($end);
-
-if ( $start_closet->room->floor && $start_closet->room->floor->site ){
-    $start_site = $start_closet->room->floor->site;
-}else{
-    $m->comp('error.mhtml', error=>"Could not determine start Site");
-}
-if ( $end_closet->room->floor && $end_closet->room->floor->site ){
-    $end_site = $end_closet->room->floor->site;
-}else{
-    $m->comp('error.mhtml', error=>"Could not determine end Site");
-}
-
-my $suggestedName;
-if ($start_site->number &&  $end_site->number){
-    $suggestedName = $start_site->number . "/" . $end_site->number;
-}else{
-    $suggestedName = $start_site->name . "/" . $end_site->name;
-}
+my $suggestedName = $start_loc->get_label . "/" . $end_loc->get_label;
 my @existing = BackboneCable->search_like(name=>$suggestedName . "%");
 $suggestedName = $suggestedName . "-" . (scalar(@existing) + 1);
 
