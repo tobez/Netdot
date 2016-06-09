@@ -10,7 +10,7 @@ $caller => $ARGS{self};
 </%args>
 
 <%init>
-my $DEBUG = 0;
+my $DEBUG = $ARGS{DEBUG};
 print "<pre> ", Dumper(%ARGS), "</pre><br>" if $DEBUG;
 </%init>
 
@@ -60,11 +60,11 @@ sub backbone_search {
     if ( scalar(@results ) < $MAX_RESULTS) {
 	$response .= "0=".$ui->url_encode("No matches") unless (scalar(@results));
 
-	@results = sort { $a->name cmp $b->name } 
-	map { Site->retrieve($_) } @results;
+	@results = sort { $a->get_label cmp $b->get_label } 
+	map { Location->retrieve($_) } @results;
 	
-	foreach my $site ( @results ){
-	    $response .= $site->id."=".$ui->url_encode($site->name)."&";
+	foreach my $loc ( @results ){
+	    $response .= $loc->id."=".$ui->url_encode($loc->get_label)."&";
 	}
     }else{
 	$response .= "0=".$ui->url_encode("More than ".$MAX_RESULTS." matches.")."&";

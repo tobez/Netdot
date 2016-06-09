@@ -669,6 +669,18 @@ sub opt
     return $val;
 }
 
+=head2 search_with_backbones
+
+=cut
+
+__PACKAGE__->set_sql(with_backbones => qq{
+SELECT   location.id 
+FROM     location, backbonecable
+WHERE    backbonecable.start_location=location.id OR backbonecable.end_location=location.id
+GROUP BY location.id, location.name    
+ORDER BY location.name
+});
+
 1;
 
 =head1 COPYRIGHT & LICENSE

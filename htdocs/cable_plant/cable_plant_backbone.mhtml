@@ -20,7 +20,7 @@ my $manager = $ui->get_permission_manager($r);
 </%init>
 
 <%perl>
-    
+
 	my @cables = ();
 	my $header_descr = "";
 
@@ -43,20 +43,20 @@ my $manager = $ui->get_permission_manager($r);
 
 	# user selected a start and end point
 	elsif ($start_id && $end_id) {
-	    my $s1 = Site->retrieve($start_id);
-	    my $s2 = Site->retrieve($end_id);
-	    @cables = BackboneCable->search_by_site(site1=>$start_id, site2=>$end_id);
-	    
-	    $header_descr = sprintf("between <a href=\"view.html?table=Site&id=%d\">%s</a>".
-				    " and <a href=\"view.html?table=Site&id=%d\">%s</a>", 
+	    my $s1 = Location->retrieve($start_id);
+	    my $s2 = Location->retrieve($end_id);
+	    @cables = BackboneCable->search_by_location(loc1=>$start_id, loc2=>$end_id);
+
+	    $header_descr = sprintf("between <a href=\"view.html?table=Location&id=%d\">%s</a>".
+				    " and <a href=\"view.html?table=Location&id=%d\">%s</a>",
 	 			    $s1->id, $s1->get_label, $s2->id, $s2->get_label);
         }
 
 	elsif ($start_id) {
-	    my $start_site = Site->retrieve($start_id);
-	    @cables = BackboneCable->search_by_site(site1=>$start_id);
+	    my $start_site = Location->retrieve($start_id);
+	    @cables = BackboneCable->search_by_location(loc1=>$start_id);
 
-	    $header_descr = sprintf("connected to <a href=\"view.html?table=Site&id=%d\">%s</a>", 
+	    $header_descr = sprintf("connected to <a href=\"view.html?table=Location&id=%d\">%s</a>",
 				    $start_site->id, $start_site->name);
 	}
 	</%perl>
@@ -77,7 +77,7 @@ my $manager = $ui->get_permission_manager($r);
 	      Backbone Cable(s) <% $header_descr ? $header_descr : "" %>
 	    </div>
 	    <div class="containerheadright">
-%             if ($edit eq "cableinfo"){	 
+%             if ($edit eq "cableinfo"){
                 <input type="button" name="cancel_button" value="cancel" onClick="history.go(-1);"> &nbsp;&nbsp; <input name="submit" value="save" type="submit">
 %             } else {
 %                   if ( $manager && $manager->can($user, 'access_admin_section', 'cable_plant_backbone:new') ){
@@ -139,7 +139,7 @@ my $manager = $ui->get_permission_manager($r);
 		    my $end_site_id = $end_site->id if ($end_site);
 
 		    my @row = ();
-		    push( @row, 
+		    push( @row,
 			  &{sub{
 			      my $ac = "";
 			      if ($edit eq "cableinfo") {
@@ -151,7 +151,7 @@ my $manager = $ui->get_permission_manager($r);
 			      $ac;
 			  }} );
 		    push( @row, $ui->form_field(object=>$cable, column=>"type", edit=>($edit eq "cableinfo"), returnValOnly=>1) );
-		    push( @row, 
+		    push( @row,
 			  &{sub{
 			      my $ac = "";
 			      if ($edit eq "cableinfo") {
@@ -163,7 +163,7 @@ my $manager = $ui->get_permission_manager($r);
 			      }
 			      $ac;
 			  }} );
-		    push( @row, 
+		    push( @row,
 			  &{sub{
 			      my $ac = "";
 			      if ($edit eq "cableinfo") {

@@ -40,64 +40,62 @@ sub get_graph {
 
     my $dbh = $class->db_Main;
     my %g;
-    my $q = "SELECT DISTINCT bc.id, s.id
-              FROM   backbonecable bc, closet cl, 
-                     room rm, floor fl, site s
-              WHERE  (bc.start_closet=cl.id OR bc.end_closet=cl.id)
-                 AND cl.room=rm.id AND rm.floor=fl.id AND fl.site=s.id";
-    
+    my $q = "SELECT DISTINCT bc.id, l.id
+              FROM   backbonecable bc, location l
+              WHERE  bc.start_location=l.id OR bc.end_location=l.id";
+
     my $rows = $dbh->selectall_arrayref($q);
     foreach my $row ( @$rows ){
-	my ($bcid, $sid) = @$row;
-	$g{SITE}{$sid}{$bcid} = 1;
-	$g{BB}{$bcid}{$sid} = 1;
+      my ($bcid, $sid) = @$row;
+      $g{LOC}{$sid}{$bcid} = 1;
+      $g{BB}{$bcid}{$sid} = 1;
     }
-    
+
     $bb_graph = \%g;
     return $bb_graph;
 }
 
 ##################################################################
 
-=head2 search_by_site - Search backbone cables by start and/or end sites
+=head2 search_by_location - Search backbone cables by start and/or end location
 
   Arguments:
     Hash with the following keys:
-      site1 -  Site id
-      site2 -  Site id 
-    (at least 1 site required)
+      loc1 -  Location id
+      loc2 -  Location id
+    (at least 1 location required)
   Returns:
     Array of BackboneCable objects
   Examples:
-    BackboneCable->search_by_site(site1=>$a,site2=>$b);
+    BackboneCable->search_by_location(loc1=>$a,loc2=>$b);
 =cut
 
-sub search_by_site {
+sub search_by_location {
     my ($class, %argv) = @_;
 
-    my $s1 = $argv{site1};
-    my $s2 = $argv{site2};
-    
-    $class->throw_user("At least one site is required for this search")
-	unless $s1 or $s2;
+    my $s1 = $argv{loc1};
+    my $s2 = $argv{loc2};
+
+    $class->throw_user("At least one location is required for this search")
+      unless $s1 or $s2;
 
     my $graph = $class->get_graph();
     my (@set1,@set2);
-    @set1 = keys %{$graph->{SITE}->{$s1}} if defined $s1;
-    @set2 = keys %{$graph->{SITE}->{$s2}} if defined $s2;
-    
+    @set1 = keys %{$graph->{LOC}->{$s1}} if defined $s1;
+    @set2 = keys %{$graph->{LOC}->{$s2}} if defined $s2;
+
     my @res;
     if ( $s1 && $s2 ){
 	if ( $s1 != $s2 ){
 	    # Get intersection of sets 1 and 2
-	    my %tmp; 
+	    my %tmp;
 	    map { $tmp{$_} = 1 } @set1;
 	    @res =  grep { $tmp{$_} } @set2;
 	}else{
 	    # backbone starts and ends in same site
 	    # Get the backbone connected to this site
 	    # which has only one site
-	    foreach my $bb ( keys %{$graph->{SITE}->{$s1}} ){
+	    foreach my $bb ( keys %{$graph->{LOC}->{$s1}} ){
 		my @n = keys %{$graph->{BB}->{$bb}};
 		if ( scalar(@n) == 1 ){
 		    push @res, $bb;
@@ -136,23 +134,19 @@ sub get_site_graph {
     my $dbh = $class->db_Main;
     my %g;
     my $q1 = "SELECT DISTINCT s1.id, s2.id
-              FROM   backbonecable bc, 
-                     closet cl1, closet cl2, 
-                     room rm1, room rm2, floor fl1, floor fl2, 
-                     site s1, site s2
-              WHERE  s1.id <= s2.id 
-                 AND cl1.room=rm1.id AND rm1.floor=fl1.id AND fl1.site=s1.id
-                 AND cl2.room=rm2.id AND rm2.floor=fl2.id AND fl2.site=s2.id
-                 AND ((bc.start_closet=cl1.id AND bc.end_closet=cl2.id) 
-                  OR (bc.end_closet=cl1.id AND bc.start_closet=cl2.id))";
-    
+              FROM   backbonecable bc,
+                     location s1, location s2
+              WHERE  s1.id <= s2.id
+                 AND ((bc.start_location=s1.id AND bc.end_location=s2.id)
+                  OR (bc.end_location=s1.id AND bc.start_location=s2.id))";
+
     my $rows = $dbh->selectall_arrayref($q1);
     foreach my $row ( @$rows ){
 	my ($s1, $s2) = @$row;
 	$g{$s1}{$s2} = 1;
 	$g{$s2}{$s1} = 1;
     }
-    
+
     $site_graph = \%g;
     return $site_graph;
 }
@@ -176,13 +170,13 @@ sub insert {
     my ($class, $argv) = @_;
 
     my $numstrands = delete $argv->{numstrands};
-    
+
     my $bc = $class->SUPER::insert($argv);
-    
+
     if ( $numstrands ){
 	$bc->insert_strands($numstrands);
     }
-    
+
     return $bc;
 }
 
@@ -193,15 +187,15 @@ sub insert {
 ##################################################################
 
 =head2 insert_strands
-    
-    
+
+
     Insert N number of CableStrands for a given Backbone.
   Arguments:
     - number:  Number of strands to insert.
     - type:    Type of fiber (multimode/singlemode)
     - status:  Strand Status (default: 'Not Terminated')
   Returns:
-    Number of strands inserted    
+    Number of strands inserted
   Examples:
      $n = $bbcable->insert_strands($number_strands);
 
@@ -215,12 +209,12 @@ sub insert_strands {
     }
     $type   ||= FiberType->search(name=>'Multimode Fiber')->first;
     $status ||= StrandStatus->search(name=>'Not Terminated')->first;
-    
+
     my $backbone_name = $self->name;
     my @cables = CableStrand->search_like(name=>$backbone_name . "%");
     my $strand_count = scalar(@cables);
     my %tmp_strands;
-   
+
     $tmp_strands{cable}      = $self->id;
     $tmp_strands{fiber_type} = $type;
     $tmp_strands{status}     = $status;
@@ -252,7 +246,7 @@ sub insert_strands {
 sub update_range{
     my ($self, %argv) = @_;
     $self->isa_object_method('update_range');
-    $self->throw_user("Missing required arguments: start/end") 
+    $self->throw_user("Missing required arguments: start/end")
 	unless ($argv{start} && $argv{end});
 
     my $start = delete $argv{start};
@@ -294,4 +288,3 @@ Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
 #Be sure to return 1
 1;
-

@@ -52,9 +52,8 @@ if ($show_tasks eq "") {
 #@sites = sort { $a->name cmp $b->name } @sites;
 my @sites = (); # XXX
 
-#my @bbsites      = Site->search_with_backbones();
+my @bblocations = Location->search_with_backbones();
 #my @closet_sites = Site->search_with_closets();
-my @bbsites = (); # XXX
 my @closet_sites = (); # XXX
 
 my $hideheader;
@@ -110,8 +109,8 @@ if( !$showheader ) {
                 <select name="start_id" id="start_id" onChange="jsrsSendqueryBB(end_id, start_id.value)">
                     <option value="">-- Select --</option>
                     <%perl>
-                    foreach my $site ( @bbsites ){
-                       printf("<option value=\"%s\">%s</option>\n", $site->id, $site->name);
+                    foreach my $loc ( @bblocations ){
+                       printf("<option value=\"%s\">%s</option>\n", $loc->id, $loc->get_label);
                     }
                     </%perl>
                </select>
