@@ -53,7 +53,7 @@ if ($show_tasks eq "") {
 my @sites = (); # XXX
 
 my @bblocations = Location->search_with_backbones();
-#my @closet_sites = Site->search_with_closets();
+my @hrlocations = Location->search_with_horizontal_cables();
 my @closet_sites = (); # XXX
 
 my $hideheader;
@@ -167,49 +167,21 @@ if( !$showheader ) {
  Name and id of this select field are different. see note below, in CLOSETS section
 </%doc>
                 <p>
-                <label for="Site">Site:</label>
-                <select name="id" id="site_id" onChange="jsrsSendqueryTB('Floor', floor_id.name, site_id.value, 'site'); jsrsResetSelection('room_id'); jsrsResetSelection('closet_id'); jsrsResetSelection('jack_id')">
+                <label for="start_id">Starts at:</label>
+                <select name="start_id" id="start_id" onChange="jsrsSendqueryHZ(end_id, start_id.value)">
                     <option value="">-- Select --</option>
                     <%perl>
-                    foreach my $site (@sites) {
-                        printf("<option value=\"%s\">%s</option>\n", $site->id, $site->name);
+                    foreach my $loc (@hrlocations) {
+                        printf("<option value=\"%s\">%s</option>\n", $loc->id, $loc->get_label);
                     }
                     </%perl>
                 </select>
-                <input name="submit_site" value="Browse by Site" type="submit">
                 </p>
-<%doc>
- When selecting by floor, default to populating our jack list based upon the closet 
- lists contents            
-</%doc>
-
                 <p>
-                <label for="Floor">Floor:</label>
-                <select name="floor_id" id="floor_id" onChange="jsrsSendqueryTB('Room', room_id.name, floor_id.value, 'floor'); jsrsSendqueryCL(closet_id, floor_id.value); jsrsResetSelection('jack_id')">
+                <label for="end_id">Ends at:</label>
+                <select name="end_id" id="end_id" onChange="jsrsSendqueryTB('HorizontalCable', jack_id.name, end_id.value, 'end_location')">
                 </select>
                 </p>
-
-<%doc>
- Because both the room list and the closet list can affect the jack list, 
- we explicitly tell the jacklist to look at this list.
-</%doc>
- 
-                <p>
-                <label for="Room">Room: </label>
-                <select name="room_id" id="room_id" onChange="jsrsSendqueryTB('HorizontalCable', jack_id.name, room_id.value, 'room')">
-                </select>
- 
-<%doc>
- Like above, make sure the jacklist uses our closet selection instead 
- of the room selection.            
-</%doc>
-
-                <p>
-		<label for="Closet">or Closet:</label>
-                <select name="closet_id" id="closet_id" onChange="jsrsSendqueryTB('HorizontalCable', jack_id.name, closet_id.value, 'closet')">
-                </select>
-                </p>
-
                 <p>
 	        <label for="Jack">Jack:</label>
                 <select name="jack_id" id="jack_id">

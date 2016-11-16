@@ -681,6 +681,18 @@ GROUP BY location.id, location.name
 ORDER BY location.name
 });
 
+=head2 search_with_horizontal_cables
+
+=cut
+
+__PACKAGE__->set_sql(with_horizontal_cables => qq{
+SELECT   l.id 
+FROM     location l, horizontalcable h
+WHERE    h.start_location=l.id
+GROUP BY l.id, l.name    
+ORDER BY l.name
+});
+
 1;
 
 =head1 COPYRIGHT & LICENSE

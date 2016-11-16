@@ -1,0 +1,72 @@
+<%doc>
+###############################################################################
+# A customized version of the generic dynamic_list_query.html
+###############################################################################
+
+</%doc>
+
+<%args>
+$field => $ARGS{field};
+$val => $ARGS{val};
+</%args>
+
+
+<%shared>
+my $DEBUG = 0;
+</%shared>
+
+<%perl>
+
+
+if ( $DEBUG ){
+    use Data::Dumper;
+    print "<pre> ", Dumper(%ARGS), "</pre><br>";
+    print &start_location_search("end_id", "14");
+} else {
+    do "jsrsServer.pm";
+    jsrsDispatch("start_location_search");
+}
+
+
+sub start_location_search {
+# Finds locations pointed to by HorizontalTable.end_location for horizontal cables whose start_location equals to val
+# Arguments:
+# - field:  Form element to add the results into
+# - val:    start_location id
+
+	my $field = shift;
+	my $val = shift;
+
+	my @terms;
+
+	if ($val =~ /\w+/) {
+		if ($val =~ /\w+\s+\w+/) {
+			# if there's more than one word
+			@terms = split /\s+/, $val;
+		} else {
+			$val =~ s/\s+//;
+			push @terms, $val;
+		}
+	}
+
+	my %loc;
+	my $start_id = $terms[0];
+	my $start = Location->retrieve($start_id);
+	for my $hz (Location->retrieve($start_id)->horizontalcables) {
+		my $loc = $hz->end_location;
+		$loc{$loc->id} = $loc;
+	}
+
+	my $response = $field."&";
+	my @loc = sort { $a->get_label cmp $b->get_label } values %loc;
+	return $response . "0=".$ui->url_encode("No matches") unless @loc;
+
+	$response .= "null=-- Select --&";
+	foreach my $loc ( @loc ){
+		$response .= $loc->id."=".$ui->url_encode($loc->get_label)."&";
+	}
+
+	return $response;
+}
+
+</%perl>

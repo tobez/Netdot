@@ -22,6 +22,11 @@
         jsrsExecute( "../generic/closet_floor_query.html", jsrsParseresults, "closet_floor_search", Array(form_field.name, val) );
     }
 
+    function jsrsSendqueryHZ(form_field, val) {
+        // Find locations pointed to HorizontalTable.end_location for horizontal cables whose start_location equals to val
+        jsrsExecute( "../cable_plant/horizontal_cable_ends_query.html", jsrsParseresults, "start_location_search", Array(form_field.name, val) );
+    }
+
     function jsrsSendqueryBB(form_field, val) {
         //alert( "Form field: "+form_field.name+"; val:"+val );
         jsrsExecute( "../cable_plant/backbone_list_query.html", jsrsParseresults, "backbone_search", Array(form_field.name, val) );
@@ -72,9 +77,9 @@
                 thelist.options[len] = optionObject;
             }
         }
-        if(!bool){
+        if(!bool && document.getElementById("keywords")){
             document.getElementById("keywords").type = "hidden";
-	    document.getElementById("button").type = "hidden";
+			if (document.getElementById("button")) document.getElementById("button").type = "hidden";
         }
     }
 

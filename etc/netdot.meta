@@ -4238,17 +4238,17 @@ $meta = {
         tag => 'Account',
         type => 'varchar'
       },
-      closet => {
+      start_location => {
         default => '',
-        description => 'The communications closet where this cable originates',
+        description => 'The location (closet) where this cable originates',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'horizontalcables',
-          table => 'Closet'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Closet',
+        tag => 'Start Location',
         type => 'bigint'
       },
       contactlist => {
@@ -4320,17 +4320,17 @@ $meta = {
         tag => 'Length',
         type => 'varchar'
       },
-      room => {
+      end_location => {
         default => '',
-        description => 'Room where this cable terminates',
+        description => 'Location (room) where this cable terminates',
         length => '',
         linksto => {
-          cascade => 'Delete',
+          cascade => 'Fail',
           method => 'jacks',
-          table => 'Room'
+          table => 'Location'
         },
         nullable => 0,
-        tag => 'Room',
+        tag => 'End Location',
         type => 'bigint'
       },
       testpassed => {
@@ -4371,8 +4371,8 @@ $meta = {
       [
         'jackid',
         'faceplateid',
-        'closet',
-        'room'
+        'start_location',
+        'end_location'
       ]
     ],
     views => {
@@ -4384,16 +4384,16 @@ $meta = {
         'testpassed',
         'installdate',
         'length',
-        'closet',
-        'room',
+        'start_location',
+        'end_location',
         'account',
         'contactlist',
         'info'
       ],
       brief => [
         'jackid',
-        'closet',
-        'room'
+        'start_location',
+        'end_location'
       ]
     }
   },
